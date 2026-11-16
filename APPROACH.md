@@ -15,5 +15,16 @@ will parse chat and policy text into validated JSON. The deterministic engine
 will make procurement decisions. With no API key, deterministic intake and
 manual policy JSON editing must remain available.
 
+Phase 2 uses Express, React/Vite, node-postgres, Zod for boundary validation,
+csv-parse/stringify for CSV handling, decimal.js for exact arithmetic, fflate
+for in-memory ZIP imports, and pdf-parse for deterministic PDF text extraction.
+Tests use Node's built-in test runner through tsx. Package versions are locked.
+No runtime LLM is needed for imports or decisions.
+
+I checked the official Express installation guidance and node-postgres
+transaction documentation when setting up the backend. All transaction queries
+use the same checked-out connection. I tested imports against the supplied kit
+and database behavior against an isolated local PostgreSQL 18 cluster.
+
 No third-party accounts, external messaging, public repo, or hosting deployment
-have been created in phase 1.
+have been created.
