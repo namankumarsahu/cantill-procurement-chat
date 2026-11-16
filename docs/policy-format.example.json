@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "version": "5.0-design-example",
+  "effective_date": "2026-04-01",
+  "status": "draft",
+  "created_by": "design-review",
+  "approved_by": null,
+  "approved_at": null,
+  "source_text": "Design example of the policy representation. Attach the complete source text when creating the actual seed.",
+  "parameters": {
+    "clubbing_created_days": 14,
+    "clubbing_need_by_days": 7,
+    "valuation_history_days": 365,
+    "eligibility_history_days": 365,
+    "preferred_history_days": 548,
+    "consolidation_hours": 24,
+    "emergency_limit_inr": 500000,
+    "spot_limit_inr": 200000,
+    "rfq_limit_inr": 1000000,
+    "rfq_supplier_count": 3,
+    "rfp_supplier_count": 5,
+    "capex_supplier_count": 5
+  },
+  "fact_registry": {
+    "is_new": { "type": "boolean", "source": "requirement.is_new" },
+    "item_type": { "type": "string", "source": "item.item_type" },
+    "category": { "type": "string", "source": "item.category" },
+    "plant": { "type": "string", "source": "requirement.plant" },
+    "is_emergency": { "type": "boolean", "source": "requirement.is_emergency" },
+    "requirement_value_inr": { "type": "number", "source": "requirement.valuation_inr" },
+    "has_usable_contract": { "type": "boolean", "source": "contract_selection.has_usable_contract" },
+    "bought_from_active_supplier": {
+      "type": "boolean",
+      "provider": "item_purchase_exists",
+      "args": {
+        "supplier_status": "Active",
+        "history_days": { "parameter": "eligibility_history_days" }
+      }
+    }
+  },
+  "route_registry": {
+    "NEW_ITEM_SOURCING": {
+      "decision": "SOURCING_REQUEST",
+      "supplier_strategy": "none",
+      "suggest_count": 0,
+      "flags": ["new_item"]
+    },
+    "CAPEX_SOURCING": {
+      "decision": "SOURCING_REQUEST",
+      "supplier_strategy": "preferred_then_category",
+      "suggest_count": { "parameter": "capex_supplier_count" },
+      "flags": ["capex_approval_required"]
+    },
+    "CONTRACT_PO": {
+      "decision": "PO",
+      "supplier_strategy": "selected_contract",
+      "price_strategy": "selected_contract",
+      "suggest_count": 0,
+      "flags": []
+    },
+    "EMERGENCY_PO": {
+      "decision": "PO",
+      "supplier_strategy": "first_preferred",
+      "price_strategy": "supplier_reference",
+      "suggest_count": 0,
+      "flags": ["emergency"]
+    },
+    "SPOT_PO": {
+      "decision": "PO",
+      "supplier_strategy": "first_preferred",
+      "price_strategy": "supplier_reference",
+      "suggest_count": 0,
+      "flags": []
+    },
+    "RFQ": {
+      "decision": "SOURCING_REQUEST",
+      "supplier_strategy": "preferred_then_category",
+      "suggest_count": { "parameter": "rfq_supplier_count" },
+      "flags": []
+    },
+    "RFP": {
+      "decision": "SOURCING_REQUEST",
+      "supplier_strategy": "preferred_then_category",
+      "suggest_count": { "parameter": "rfp_supplier_count" },
+      "flags": []
+    }
+  },
+  "rules": [
+    {
+      "id": "new-item",
+      "clause": "1.2",
+      "order": 10,
+      "when": { "fact": "is_new", "operator": "eq", "value": true },
+      "outcome": { "route": "NEW_ITEM_SOURCING" }
+    },
+    {
+      "id": "capex",
+      "clause": "5.1",
+      "order": 20,
+      "when": { "fact": "item_type", "operator": "eq", "value": "Capex" },
+      "outcome": { "route": "CAPEX_SOURCING" }
+    },
+    {
+      "id": "contract",
+      "clause": "5.2",
+      "order": 30,
+      "when": { "fact": "has_usable_contract", "operator": "eq", "value": true },
+      "outcome": { "route": "CONTRACT_PO" }
+    },
+    {
+      "id": "emergency",
+      "clause": "5.3",
+      "order": 40,
+      "when": {
+        "all": [
+          { "fact": "is_emergency", "operator": "eq", "value": true },
+          { "fact": "requirement_value_inr", "operator": "lte", "value": { "parameter": "emergency_limit_inr" } },
+          { "fact": "bought_from_active_supplier", "operator": "eq", "value": true }
+        ]
+      },
+      "outcome": { "route": "EMERGENCY_PO" }
+    },
+    {
+      "id": "spot",
+      "clause": "5.4",
+      "order": 50,
+      "when": {
+        "all": [
+          { "fact": "requirement_value_inr", "operator": "lt", "value": { "parameter": "spot_limit_inr" } },
+          { "fact": "bought_from_active_supplier", "operator": "eq", "value": true }
+        ]
+      },
+      "outcome": { "route": "SPOT_PO" }
+    },
+    {
+      "id": "rfq",
+      "clause": "5.5",
+      "order": 60,
+      "when": { "fact": "requirement_value_inr", "operator": "lt", "value": { "parameter": "rfq_limit_inr" } },
+      "outcome": { "route": "RFQ" }
+    },
+    {
+      "id": "rfp",
+      "clause": "5.6",
+      "order": 70,
+      "when": { "all": [] },
+      "outcome": { "route": "RFP" }
+    }
+  ],
+  "ranking": {
+    "weights": { "frequency": 0.3, "recency": 0.3, "contract": 0.2, "on_time": 0.1, "quality": 0.1 },
+    "frequency_normalization": "max_eligible_count",
+    "recency_bands": [ { "max_days": 90, "score": 1 }, { "max_days": 365, "score": 0.5 } ],
+    "older_recency_score": 0,
+    "on_time_scale": 100,
+    "quality_scale": 5,
+    "tie_breaker": "supplier_id_ascending",
+    "category_top_up_order": ["on_time_descending", "quality_descending", "supplier_id_ascending"]
+  },
+  "matching": {
+    "confidence_threshold": 0.82,
+    "winner_margin": 0.08,
+    "aliases": { "brg": "bearing", "hyd": "hydraulic", "pneu": "pneumatic", "ss": "stainless steel", "rod": "electrode" },
+    "ignored_phrases": ["as per sample", "for maintenance", "repeat", "urgent"],
+    "require_compatible_model_tokens": true
+  }
+}
