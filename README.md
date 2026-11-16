@@ -2,7 +2,7 @@
 
 A policy-driven PR-to-PO take-home project for Cantill.ai.
 
-Current status: **phase 2, scaffold and imports**. Read [the review and proposed schema](docs/PHASE_1.md),
+Current status: **phase 3 complete: deterministic engine, batch API, and CSV export**. Read [the review and proposed schema](docs/PHASE_1.md),
 [business decisions](DECISIONS.md), and [tool disclosure](APPROACH.md).
 
 ## Local kit
@@ -73,8 +73,56 @@ the reviewed content. Uploads are limited to 10 MB compressed / 50 MB expanded.
 
 TypeScript monorepo: pure `engine/`, Express `server/`, React `web/`, PostgreSQL.
 Phase 2 includes migrations, imports, policy validation and the hand-authored v5 seed.
-Later phases add the engine/API, supplier ranking exports, policy version workflow,
+Phase 3 includes the pure engine, supplier ranking needed for decisions, the batch
+API, and persisted CSV exports. Later phases add supplier ranking exports, policy version workflow,
 requester/buyer UI and audit, contract extraction, and deployment.
 
 The actual v5 seed is `server/policies/v5.0.json`; the earlier JSON in `docs/` is
 only a design example. Thresholds and windows are data, not engine constants.
+
+
+## Process a PR batch
+
+With the server running and master data imported:
+
+```sh
+curl -X POST http://localhost:3000/api/process-batch \
+  -H "x-actor: buyer-demo" \
+  -F "file=@kit_data/pr_batches/sample_pr_batch.csv" \
+  -F "policy_version=5.0" \
+  -F "as_of_date=2026-11-20"
+```
+
+Use `curl.exe` in PowerShell and put the command on one line (the backslashes
+above are shell line continuations). `file` is the multipart CSV field. Optional
+parameters can be separate multipart fields or a JSON `params` field containing
+`as_of_date`, `policy_version`, and optionally an immutable `import_id`.
+Without an as-of date, the latest valid input creation date is used. Without a
+version, choose the latest approved policy effective on that date. Future and
+draft policies cannot be used early. See DECISIONS.md for cutoff and replay rules.
+
+The JSON response contains `run_id`, `rows` (one per input line), `requirements`
+(with clause, contract/PO evidence, valuation source and ranking breakdown),
+`purchase_orders` (proposals), `contract_consumed` (simulated), and `export_url`.
+Processing does not place orders or consume live ceilings.
+
+Fetch `GET /api/runs/<run_id>/export` for the exact required CSV column order,
+or `GET /api/runs/<run_id>` for the saved result. Runs retain policy JSON and an
+immutable master-data snapshot reference. Invalid rows remain in the export with
+route NOT_PROCESSED and a reason. Formula-like text is escaped for spreadsheet
+safety; API values preserve the original input.
+
+```sh
+npm run test:worked
+npm run report:worked
+```
+
+The [worked-example report](docs/WORKED_EXAMPLES.md) records all 14 scenarios.
+All pass on routes, source-data values, suppliers/rates, suggestions, and illustrated
+group/consolidation relationships. PO labels differ from the PDF's illustrative
+labels; deterministic chronological numbering and membership are tested.
+
+Thresholds and history/clubbing/consolidation windows live in
+`server/policies/v5.0.json`. Tests demonstrate raising the spot limit, adding a
+plant-only restriction, and adding a sourcing route using JSON changes alone.
+Uploading and approving amendments through the app is phase 5, not yet available.

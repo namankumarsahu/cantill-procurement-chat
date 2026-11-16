@@ -155,10 +155,11 @@
     "on_time_scale": 100,
     "quality_scale": 5,
     "tie_breaker": "supplier_id_ascending",
-    "category_top_up_order": ["on_time_descending", "quality_descending", "supplier_id_ascending"]
+    "category_top_up_order": ["performance_score_descending", "on_time_descending", "quality_descending", "supplier_id_ascending"]
   },
   "matching": {
     "confidence_threshold": 0.82,
+    "candidate_threshold": 0.55,
     "winner_margin": 0.08,
     "aliases": { "brg": "bearing", "hyd": "hydraulic", "pneu": "pneumatic", "ss": "stainless steel", "rod": "electrode" },
     "ignored_phrases": ["as per sample", "for maintenance", "repeat", "urgent"],

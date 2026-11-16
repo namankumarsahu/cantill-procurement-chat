@@ -41,9 +41,9 @@ const schema = z.strictObject({
     recency_bands: z.array(z.strictObject({ max_days: z.number().int().nonnegative(), score: z.number().min(0).max(1) })),
     older_recency_score: z.number().min(0).max(1), on_time_scale: z.number().positive(), quality_scale: z.number().positive(),
     tie_breaker: z.literal('supplier_id_ascending'),
-    category_top_up_order: z.tuple([z.literal('on_time_descending'), z.literal('quality_descending'), z.literal('supplier_id_ascending')]),
+    category_top_up_order: z.tuple([z.literal('performance_score_descending'), z.literal('on_time_descending'), z.literal('quality_descending'), z.literal('supplier_id_ascending')]),
   }),
-  matching: z.strictObject({ confidence_threshold: z.number().min(0).max(1), winner_margin: z.number().min(0).max(1), aliases: z.record(z.string(), z.string()), ignored_phrases: z.array(z.string()), require_compatible_model_tokens: z.boolean() }),
+  matching: z.strictObject({ confidence_threshold: z.number().min(0).max(1), candidate_threshold: z.number().min(0).max(1), winner_margin: z.number().min(0).max(1), aliases: z.record(z.string(), z.string()), ignored_phrases: z.array(z.string()), require_compatible_model_tokens: z.boolean() }),
 });
 export type Policy = z.infer<typeof schema>;
 export function parameter(policy: Policy, name: string): number {
@@ -88,6 +88,7 @@ export function validatePolicy(input: unknown): Policy {
     if (r.decision === 'SOURCING_REQUEST' && !['none', 'preferred_then_category'].includes(r.supplier_strategy)) fail('invalid sourcing strategy');
   }
   const bands = p.ranking.recency_bands;
+  if (p.matching.candidate_threshold > p.matching.confidence_threshold) fail('candidate threshold exceeds auto-match threshold');
   if (bands.some((b, i) => i > 0 && b.max_days <= bands[i - 1].max_days)) fail('recency bands must be ordered');
   return p;
 }

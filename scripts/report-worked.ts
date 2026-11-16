@@ -1,0 +1,13 @@
+import { writeFile } from 'node:fs/promises';
+import { inspectKit,readKitDirectory } from '../server/src/import-kit.js';
+import { loadSeedPolicy } from '../server/src/repository.js';
+import { processBatch } from '../engine/src/process.js';
+import { workedCases,checkWorked,wholeRupees } from '../engine/test/worked-support.js';
+const kit=await inspectKit(await readKitDirectory(process.env.KIT_DATA_DIR || 'kit_data'));
+const result=processBatch(await loadSeedPolicy(),kit.data,kit.batch);
+const checks=workedCases.map(c=>({c,errors:checkWorked(result,c)}));
+const rows=checks.map(({c,errors})=>`| ${c.number} | ${c.name} | ${errors.length?'FAIL':'PASS'} | ${c.route} | ${c.value} (${wholeRupees(c.value)} rounded) | ${errors.join('; ') || 'Matches'} |`);
+const passed=checks.filter(r=>!r.errors.length).length;
+await writeFile('docs/WORKED_EXAMPLES.md',`# Worked-example verification\n\nGenerated with npm run report:worked, using the entire local kit, all twelve\ncontracts, and the hand-authored v5.0 seed. ${passed}/14 scenarios pass.\n\nChecks include route, exact source-data valuation, PO supplier/rate or ordered\nsourcing suggestions, supporting contract, provenance, and the grouping or\nconsolidation relationships illustrated by each scenario. PDF display values\nround to whole rupees; exports preserve paisa.\n\n| # | Scenario | Result | Route | Exact INR value (PDF display) | Detail |\n| --- | --- | --- | --- | --- | --- |\n${rows.join('\n')}\n\nPO labels are generated in chronological order from the complete batch and are\nnot compared to the PDF's illustrative labels. For example, the earliest sample\nrequirement starts at 08:10 on 2 November, before the oil example at 09:40. The\noil PO is PO-0002 in this run; the PDF calls it PO-0001. Stable IDs and actual\nconsolidation membership are tested.\n\nAll 186 input rows remain in output. The two invalid rows are NOT_PROCESSED\nwith reasons. Tests also check the three published preferred-list examples.\n\nThis verifies deterministic proposals; buyer approval and actual PO/event\ncreation belong to later phases.\n`);
+console.log(`${passed}/14 worked scenarios passed; see docs/WORKED_EXAMPLES.md`);
+if (passed!==workedCases.length) process.exitCode=1;

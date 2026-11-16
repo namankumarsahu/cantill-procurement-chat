@@ -264,6 +264,7 @@
     "quality_scale": 5,
     "tie_breaker": "supplier_id_ascending",
     "category_top_up_order": [
+      "performance_score_descending",
       "on_time_descending",
       "quality_descending",
       "supplier_id_ascending"
@@ -285,6 +286,7 @@
       "repeat",
       "urgent"
     ],
-    "require_compatible_model_tokens": true
+    "require_compatible_model_tokens": true,
+    "candidate_threshold": 0.55
   }
 }

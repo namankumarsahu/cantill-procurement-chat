@@ -1,7 +1,7 @@
 # Decisions
 
-These are design choices from the kit review. They become implementation promises
-only as the corresponding phase is built and tested.
+The import and engine choices below are implemented and tested through phase 3.
+Policy-update and buyer-approval workflows describe later-phase behavior.
 
 ## Dates and policy selection
 
@@ -167,8 +167,12 @@ published cylinder suppliers in order and the two MIG-wire suppliers in order.
 
 Reference price uses the supplier's latest item PO in 548 days, else its most
 recent started item contract, including expired ones. Sourcing takes preferred
-suppliers first, then unused Active category suppliers ordered by on-time
-descending, quality descending, ID ascending. If fewer suppliers exist than
+suppliers first, then unused Active category suppliers ordered
+by the same weighted on-time and quality contributions used in the main score.
+Break equal performance scores by on-time descending, quality descending, then
+ID ascending. This phase-3 refinement uses both performance factors for top-up;
+the initial phase-1 draft sorted by on-time first, which disagreed with examples
+10 and 11. No item- or supplier-specific exceptions are used. If fewer suppliers exist than
 requested, return all eligible ones with a shortage flag; never fill with blocked
 or unrelated suppliers. NEW items get no suggestions.
 
@@ -196,3 +200,19 @@ Reject unsupported semantics with an actionable error and manual JSON editing.
 Show parameter, condition, order, outcome, and effective-date differences before
 approval. A plain-language diff is derived from validated JSON, not an LLM's
 claim that it made a change. No-key mode supports manual JSON updates.
+
+
+## Phase-3 export and verification notes
+
+CSV columns use the exact required order. Formula-like text is prefixed with an
+apostrophe by csv-stringify for spreadsheet safety; the JSON API retains original
+values. Rejected rows create no PO or sourcing record. All outputs are proposals
+until buyer approval is implemented. Processing is repeatable and does not update
+contract consumption in master data.
+
+The fourteen worked scenarios match routes, exact source-data money, suppliers,
+ordered suggestions, and illustrated grouping/consolidation relationships. The
+PDF displays whole rupees; tests and CSV preserve paisa. PO identifiers are run-
+scoped labels, not answer-key constants. The sample has an eligible early servo
+requirement at 08:10, so the oil example at 09:40 is PO-0002 here rather than the
+PDF's PO-0001. Tests assert stable numbering and real consolidation membership.

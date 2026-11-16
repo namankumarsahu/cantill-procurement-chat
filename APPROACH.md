@@ -28,3 +28,15 @@ and database behavior against an isolated local PostgreSQL 18 cluster.
 
 No third-party accounts, external messaging, public repo, or hosting deployment
 have been created.
+
+
+Phase 3 uses a pure TypeScript engine: it takes policy, master data and PR lines
+and returns proposals without HTTP, database, filesystem or wall-clock access.
+The server parses CSV, selects the effective approved policy, loads an immutable
+import snapshot, then saves the run and audit event in one PostgreSQL transaction.
+
+I verified the full kit through POST /api/process-batch and its CSV export, in
+addition to synthetic boundary tests and the fourteen worked scenarios. Ranking
+uses the documented weights consistently; category top-up uses the delivery and
+quality components together. No sample PR, item or supplier identifiers occur
+in engine source. Fixture references exist only in tests.
