@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_USER: corvo
+      POSTGRES_PASSWORD: corvo
+      POSTGRES_DB: corvo
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corvo -d corvo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://corvo:corvo@db:5432/corvo
+      PORT: 3000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-local-demo-only-change-me}
+      ALLOW_DEMO_RESET: ${ALLOW_DEMO_RESET:-false}
+      EXPORT_FILENAME_PREFIX: ${EXPORT_FILENAME_PREFIX:-yourname}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_RESPONSE_FORMAT: ${LLM_RESPONSE_FORMAT:-json_schema}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres_data:
