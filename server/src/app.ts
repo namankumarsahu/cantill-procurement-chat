@@ -2,6 +2,8 @@ import express from 'express';
 import multer from 'multer';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
+import {z} from 'zod';
+import {resetDemo} from './reset-demo.js';
 import type pg from 'pg';
 import { inspectKit, readKitZip } from './import-kit.js';
 import { saveImport } from './repository.js';
@@ -21,11 +23,19 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, o
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
-  app.get('/api/health', async (_req, res) => { await pool.query('SELECT 1'); res.json({ status: 'ok' }); });
+  app.get('/api/health', async (_req, res) => {
+    try{await pool.query('SELECT 1');res.json({status:'ok'});}
+    catch{res.status(503).json({status:'unavailable'});}
+  });
+  app.post('/api/admin/reset-demo',adminOnly(adminToken),async(req,res)=>{
+    if(!adminToken||process.env.ALLOW_DEMO_RESET!=='true'){res.status(403).json({error:'Remote demo reset requires ADMIN_TOKEN and ALLOW_DEMO_RESET=true'});return;}
+    const who=actor(req),body=z.strictObject({confirm_reset:z.boolean().default(false)}).parse(req.body??{});
+    res.json(await resetDemo(pool,body.confirm_reset,who));
+  });
   app.get('/api/status', async (_req, res) => {
     const latest = await pool.query('SELECT id,counts,warnings,snapshot_date::text,created_at FROM imports ORDER BY created_at DESC,id DESC LIMIT 1');
     const policies = await pool.query('SELECT version,effective_date::text,status FROM policy_versions ORDER BY effective_date DESC');
-    res.json({ latest_import: latest.rows[0] ?? null, policies: policies.rows });
+    res.json({ latest_import: latest.rows[0] ?? null, policies: policies.rows, export_filename_prefix:process.env.EXPORT_FILENAME_PREFIX??'yourname' });
   });
   app.post('/api/admin/import-master', adminOnly(adminToken), upload.single('file'), async (req, res) => {
     const actingUser = actor(req);

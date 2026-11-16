@@ -4,7 +4,7 @@ import pg, { type PoolClient } from 'pg';
 pg.types.setTypeParser(1082, value => value);
 export function createPool(url = process.env.DATABASE_URL): pg.Pool {
   if (!url) throw new Error('Set DATABASE_URL to a PostgreSQL connection string');
-  return new pg.Pool({ connectionString: url, max: 5 });
+  return new pg.Pool({ connectionString: url, max: 5, connectionTimeoutMillis:10000 });
 }
 export async function transaction<T>(pool: pg.Pool, work: (client: PoolClient) => Promise<T>, isolation = ''): Promise<T> {
   const client = await pool.connect();

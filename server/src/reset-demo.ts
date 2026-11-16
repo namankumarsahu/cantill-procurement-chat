@@ -2,7 +2,7 @@ import type pg from 'pg';
 import {transaction} from './db.js';
 import {loadSeedPolicy} from './repository.js';
 export async function resetDemo(pool:pg.Pool,confirm=false,actor='demo-reset'){
- if(process.env.NODE_ENV==='production')throw new Error('Demo reset is disabled in production');
+ if(process.env.NODE_ENV==='production'&&process.env.ALLOW_DEMO_RESET!=='true')throw new Error('Demo reset is disabled in production; enable ALLOW_DEMO_RESET only on a disposable demo');
  const seed=await loadSeedPolicy();
  return transaction(pool,async client=>{
   if(confirm){await client.query("SELECT pg_advisory_xact_lock(hashtext('corvo_policy_approval'))");await client.query("SELECT pg_advisory_xact_lock(hashtext('corvo_current_batch'))");await client.query('LOCK TABLE policy_versions,processing_runs,policy_impact_previews IN ACCESS EXCLUSIVE MODE');}
