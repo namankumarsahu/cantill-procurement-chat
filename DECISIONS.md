@@ -262,3 +262,44 @@ changes. Requests lock that batch, preserve the previous result/policy in audit,
 and replace current PO proposals. No live contract consumption or actual order
 records are created by processing. Legacy duplicate uploads are linked to one
 canonical batch; earlier legacy runs are retained as non-current history.
+
+
+## Impact previews and feedback hardening
+
+Before approval, simulate the latest current batch under both its saved approved
+policy and the candidate draft, using the same raw input/master snapshot and
+comparison date. If the draft is future-effective, advance both comparisons to
+that date so cutoff differences are not mistaken for policy differences. The
+UI shows original and comparison dates. Draft simulation is an explicit engine
+preview mode; process-batch still refuses unapproved drafts.
+
+Changed rows include routing, supplier, rate, exact value, suggestions, and actual
+clubbing/PO membership changes. Stable membership is compared rather than opaque
+IDs, so shifting PO numbers does not create spurious impact counts. Unchanged
+routes with other decision changes appear as same-route transitions. Metadata,
+policy-version stamps, and reason text alone do not count as decision changes.
+
+A stored preview binds the draft review hash to the current run, policy snapshot
+and results. Approval rejects missing or stale previews, and batch replacement
+serializes with preview/approval. If there is no current batch, the reviewer must
+explicitly acknowledge that impact cannot be measured. A zero-change warning is
+not an automatic rejection: some valid amendments may affect no rows in a batch.
+
+Regeneration preserves the original source, passes cumulative reviewer feedback
+and the current draft to the model, and replaces the draft only after schema and
+restatement validation. Feedback is repeated in the final user message to avoid
+the original text overriding corrections. Changes during an in-flight request
+cause rejection instead of overwriting newer work. Manual edits clear model
+restatements so stale explanations cannot be shown for changed JSON.
+
+Temperature 0, a constant v5.0 reference, and three illustrative text/JSON pairs
+reduce model variability. They do not guarantee byte-identical hosted-model
+responses or correct interpretation. Examples are prompt data, never active
+procurement rules. Every new rule must have a unique, nonempty, single-line model
+restatement, shown beside the engine-derived diff and impact.
+
+The reset script is explicitly for a demo database. It previews by default and
+requires --confirm-reset for deletion. It deletes non-v5.0 policies and all runs/
+impact previews, restores the hand-authored v5.0 seed, and retains master data, raw
+batches, source evidence and prior audit history. It appends a reset audit event
+and refuses production mode. A real reset was tested only in a disposable schema.

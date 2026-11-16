@@ -1,10 +1,12 @@
 import {z} from 'zod';
 import {validatePolicy,type Policy} from '../../engine/src/policy.js';
-export const editSchema=z.strictObject({operations:z.array(z.strictObject({op:z.enum(['add','replace','remove']),path:z.string().regex(/^\//),value_json:z.string().nullable()})).max(128),unresolved:z.array(z.string())});
+export const restatementSchema=z.strictObject({rule_id:z.string().min(1),text:z.string().min(1).max(400).regex(/^[^\r\n]+$/)});
+export type RuleRestatement=z.infer<typeof restatementSchema>;
+export const editSchema=z.strictObject({rule_restatements:z.array(restatementSchema),operations:z.array(z.strictObject({op:z.enum(['add','replace','remove']),path:z.string().regex(/^\//),value_json:z.string().nullable()})).max(128),unresolved:z.array(z.string())});
 export type PolicyEdits=z.infer<typeof editSchema>;
 export const editsJSONSchema=z.toJSONSchema(editSchema);
 export function applyPolicyEdits(base:Policy,input:unknown):Policy{
- const edits=editSchema.parse(input);if(edits.unresolved.length)throw new Error(`Policy needs clarification: ${edits.unresolved.join('; ')}`);
+ const edits=editSchema.parse({rule_restatements:[],...input as object});if(edits.unresolved.length)throw new Error(`Policy needs clarification: ${edits.unresolved.join('; ')}`);
  if(!edits.operations.length)throw new Error('No policy changes were extracted');
  const result=structuredClone(base) as unknown as Record<string,unknown>;
  for(const edit of edits.operations){
@@ -22,4 +24,10 @@ export function applyPolicyEdits(base:Policy,input:unknown):Policy{
   }else{const object=parent as Record<string,unknown>;if(edit.op!=='add'&&!Object.hasOwn(object,key))throw new Error(`Missing edit target ${edit.path}`);if(edit.op==='remove')delete object[key];else object[key]=value;}
  }
  return validatePolicy(result);
+}
+
+export function validateRestatements(base:Policy,candidate:Policy,statements:RuleRestatement[]):void{
+ if(new Set(statements.map(s=>s.rule_id)).size!==statements.length)throw new Error('Duplicate rule restatement');
+ for(const s of statements)if(!candidate.rules.some(r=>r.id===s.rule_id))throw new Error(`Restatement references unknown rule ${s.rule_id}`);
+ for(const r of candidate.rules)if(!base.rules.some(b=>b.id===r.id)&&!statements.some(s=>s.rule_id===r.id))throw new Error(`Missing plain-English restatement for new rule ${r.id}`);
 }

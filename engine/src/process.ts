@@ -55,11 +55,11 @@ export function batchAsOf(lines: PRLine[], requested?: string): string {
   if (!as_of_date || !validDate(as_of_date)) throw new Error('Supply a valid as_of_date when no PR creation date is valid');
   return as_of_date;
 }
-export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLine[], options: { as_of_date?: string } = {}): BatchResult {
+export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLine[], options: { as_of_date?: string; preview_draft?: boolean } = {}): BatchResult {
   const policy = validatePolicy(inputPolicy);
   if (new Set(lines.map(l => l.source_row)).size !== lines.length) throw new Error('source_row must uniquely identify each input row');
   const as_of_date = batchAsOf(lines,options.as_of_date);
-  if (policy.status === 'draft' || policy.effective_date > as_of_date) throw new Error('An approved, effective policy is required');
+  if ((policy.status === 'draft' && !options.preview_draft) || policy.effective_date > as_of_date) throw new Error('An approved, effective policy is required');
   const rejected = new Map<number, { reason: string; code: string }>(), resolved: Resolved[] = [];
   const copies = new Map<string, PRLine[]>();
   for (const line of lines) { const key = JSON.stringify([line.pr_no,line.pr_line]); copies.set(key,[...(copies.get(key) ?? []),line]); }

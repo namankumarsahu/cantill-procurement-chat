@@ -23,6 +23,7 @@ export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Mul
     const saved = await transaction(pool, async client => {
       const hash=(await client.query("SELECT encode(sha256(convert_to($1::jsonb::text,'UTF8')),'hex') hash",[JSON.stringify(lines)])).rows[0].hash as string;
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))",[`corvo_batch:${hash}`]);
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('corvo_current_batch'))");
       const master=await loadMasterData(client,options.import_id);
       const policy=await selectPolicy(client,as_of_date,options.policy_version),result=processBatch(policy,master.data,lines,{as_of_date});
       const oldBatch=await client.query('SELECT id FROM batches WHERE content_hash=$1 FOR UPDATE',[hash]);
@@ -34,7 +35,7 @@ export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Mul
       const previous=await client.query('SELECT id,policy_version,as_of_date::text,policy_snapshot,result,actor FROM processing_runs WHERE batch_id=$1 AND is_current FOR UPDATE',[batch_id]);
       const run_id=previous.rows[0]?.id??randomUUID();
       await client.query(`INSERT INTO processing_runs(id,batch_id,import_id,policy_version,as_of_date,policy_snapshot,result,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-        ON CONFLICT(batch_id) WHERE is_current DO UPDATE SET import_id=EXCLUDED.import_id,policy_version=EXCLUDED.policy_version,as_of_date=EXCLUDED.as_of_date,policy_snapshot=EXCLUDED.policy_snapshot,result=EXCLUDED.result,actor=EXCLUDED.actor`,[run_id,batch_id,master.import_id,policy.version,as_of_date,policy,result,actor]);
+        ON CONFLICT(batch_id) WHERE is_current DO UPDATE SET import_id=EXCLUDED.import_id,policy_version=EXCLUDED.policy_version,as_of_date=EXCLUDED.as_of_date,policy_snapshot=EXCLUDED.policy_snapshot,result=EXCLUDED.result,actor=EXCLUDED.actor,updated_at=now()`,[run_id,batch_id,master.import_id,policy.version,as_of_date,policy,result,actor]);
       await client.query('INSERT INTO audit_events(actor,action,before,after) VALUES($1,$2,$3,$4)',[actor,previous.rowCount?'REPROCESS_BATCH':'PROCESS_BATCH',previous.rows[0]??null,{run_id,batch_id,import_id:master.import_id,policy_version:policy.version,result}]);
       return{run_id,batch_id,replaced:!!previous.rowCount,...result,export_url:`/api/runs/${run_id}/export`};
     });

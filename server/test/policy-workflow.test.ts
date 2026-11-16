@@ -1,11 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import pg from 'pg';
-import {randomUUID} from 'node:crypto';
 import {stringify} from 'csv-stringify/sync';
-import {createApp} from '../src/app.js';
-import {migrate} from '../src/migrate.js';
-import {ensureSeedPolicy,loadSeedPolicy,saveImport} from '../src/repository.js';
+import {loadSeedPolicy} from '../src/repository.js';
+import {withApp} from './policy-fixture.js';
 import {master,line,policy} from '../../engine/test/fixtures.js';
 import {prColumns} from '../src/csv.js';
 import {applyPolicyEdits,type PolicyEdits} from '../src/policy-edits.js';
@@ -27,16 +24,9 @@ function pdf(text:string):Buffer{
  let out='%PDF-1.4\n';const offsets=[0];for(const [i,obj]of objects.entries()){offsets.push(Buffer.byteLength(out));out+=`${i+1} 0 obj\n${obj}\nendobj\n`;}
  const start=Buffer.byteLength(out);out+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>`${String(n).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;return Buffer.from(out);
 }
-async function withApp(parser:DraftParser|undefined,work:(url:string,pool:pg.Pool)=>Promise<void>){
- const admin=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL}),schema=`test_${randomUUID().replaceAll('-','')}`;await admin.query(`CREATE SCHEMA ${schema}`);
- const pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,options:`-c search_path=${schema}`});let server:ReturnType<ReturnType<typeof createApp>['listen']>|undefined;
- try{await migrate(pool);await ensureSeedPolicy(pool);const data=master();data.plants.push({plant:'CHK1',name:'Chakan'});await saveImport(pool,{data,batch:[],documents:[],warnings:[],fingerprint:'workflow-fixture',snapshot_date:'2026-01-01'},'test');
- server=createApp(pool,'test',{policyParser:parser}).listen(0,'127.0.0.1');await new Promise<void>(r=>server!.once('listening',r));await work(`http://127.0.0.1:${(server.address()as{port:number}).port}`,pool);
- }finally{if(server)await new Promise<void>(r=>server!.close(()=>r()));await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
-}
-async function post(url:string,path:string,body:unknown){const r=await fetch(url+path,{method:'POST',headers:{...header,'content-type':'application/json'},body:JSON.stringify(body)});return{status:r.status,data:await r.json()};}
+async function post(url:string,path:string,body:unknown){if(path.endsWith('/approve')){const preview=await fetch(url+path.replace('/approve','/impact'),{method:'POST',headers:{...header,'content-type':'application/json'},body:JSON.stringify(body)});if(preview.ok){const impact=await preview.json();body={...body as object,preview_id:impact.preview_id,allow_no_batch:!impact.available};}}const r=await fetch(url+path,{method:'POST',headers:{...header,'content-type':'application/json'},body:JSON.stringify(body)});return{status:r.status,data:await r.json()};}
 for(const [index,c]of cases.entries())test(`Amendment ${String.fromCharCode(97+index)}: ${c.name}, draft/diff/approve/date/reprocess`,{skip:!process.env.TEST_DATABASE_URL},async()=>{
- let parsedSource='';const parser:DraftParser=async source=>{parsedSource=source;return{operations:c.edits,unresolved:[]};};
+ let parsedSource='';const parser:DraftParser=async source=>{parsedSource=source;return{operations:c.edits,unresolved:[],rule_restatements:c.edits.filter(e=>e.path.startsWith('/rules/')).map(e=>({rule_id:JSON.parse(e.value_json).id,text:'Apply the scoped amendment while preserving earlier rules.'}))};};
  await withApp(parser,async(url,pool)=>{
   const csv=stringify([line(1,{quantity:c.quantity,plant:c.plant})],{header:true,columns:[...prColumns]});
   async function batch(date:string,version?:string){const form=new FormData();form.set('file',new Blob([csv]),'same-batch.csv');form.set('as_of_date',date);if(version)form.set('policy_version',version);const r=await fetch(url+'/api/process-batch',{method:'POST',headers:header,body:form});return{status:r.status,data:await r.json()};}
@@ -90,9 +80,10 @@ test('unresolved edits, arbitrary source facts and prototype paths are rejected;
 });
 test('OpenAI-compatible adapter requests strict edits and rejects bad JSON/provider errors without activation',async()=>{
  let request:Record<string,unknown>={};
- const mock=(async(_url:unknown,init:RequestInit)=>{request=JSON.parse(String(init.body));return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({operations:cases[0].edits,unresolved:[]})}}]}),{status:200});})as typeof fetch;
+ const mock=(async(_url:unknown,init:RequestInit)=>{request=JSON.parse(String(init.body));return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({operations:cases[0].edits,unresolved:[],rule_restatements:[]})}}]}),{status:200});})as typeof fetch;
  const config={base_url:'https://example.invalid/v1',model:'mock',api_key:'fake-test-key'};
- const edits=await parseAmendment('Raise limit',policy(),config,mock);assert.equal(edits.operations.length,1);assert.equal((request.response_format as {json_schema:{strict:boolean}}).json_schema.strict,true);assert.ok(!JSON.stringify(request.response_format).includes('starts_with'));
+ const edits=await parseAmendment('Raise limit',policy(),config,mock);assert.equal(edits.operations.length,1);assert.equal(request.temperature,0);assert.ok(JSON.stringify(request.messages).includes('reference v5.0 policy'));assert.ok(JSON.stringify(request.messages).includes('Illustrative amendment text'));assert.equal(edits.rule_restatements.length,0);
+ await parseAmendment('Lower the spot limit',policy(),config,mock,{v5:policy(),current_draft:policy(),feedback:'No, only to CHK1.'});const messages=request.messages as {role:string;content:string}[];assert.ok(messages.at(-1)!.content.includes('only to CHK1'));assert.ok(messages.at(-1)!.content.includes('original_amendment'));assert.equal((request.response_format as {json_schema:{strict:boolean}}).json_schema.strict,true);assert.ok(!JSON.stringify(request.response_format).includes('starts_with'));
  await assert.rejects(parseAmendment('x',policy(),{},mock),/not configured/);
  await assert.rejects(parseAmendment('x',policy(),config,(async()=>new Response('{"choices":[{"message":{"content":"oops"}}]}'))as typeof fetch),/invalid/);
  await assert.rejects(parseAmendment('x',policy(),config,(async()=>new Response('',{status:500}))as typeof fetch),/HTTP 500/);

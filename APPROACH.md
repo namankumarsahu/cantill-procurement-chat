@@ -63,3 +63,15 @@ amendment. The first required manual semantic correction; the second produced
 a correct draft after tightening the scope/fallback instructions. Both were
 reviewed, approved and reprocessed. See docs/LIVE_LLM_CHECK.md. Earlier phase-five
 notes describe the state before this live check.
+
+
+For amendment hardening, I added impact simulation without saving proposals,
+preview-bound approval, temperature-zero example prompting, rule restatements,
+feedback regeneration and a dry-run-first demo reset. Automated tests use isolated
+PostgreSQL schemas. A live Groq regeneration test also ran in a disposable schema:
+the ineffective draft had zero route changes; CHK1 feedback produced the expected
+one-row SPOT_PO-to-RFQ transition, with the other plant unchanged. Saved run data
+was unchanged and the temporary schema was removed. No live reset was executed.
+
+Groq documents determinism as best-effort:
+[API reference](https://console.groq.com/docs/api-reference).
