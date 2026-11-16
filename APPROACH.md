@@ -9,7 +9,7 @@ to inspect all rows, and bundled pypdf layout extraction to read all 15 PDFs.
 Poppler's pdftotext was not installed. Extracted text and the inspection report
 remain in ignored kit_data. No source datasets or signed PDFs are committed.
 
-No runtime LLM provider is connected yet. The implemented integration accepts an
+Groq is now connected locally for policy drafting. The implemented integration accepts an
 OpenAI-compatible base URL, model, and key through environment variables. It
 parses policy text into validated edits and a full policy draft. Requester chat
 parsing remains a later phase. The deterministic engine
@@ -52,5 +52,14 @@ official structured-output documentation:
 I tested four fake amendments through real HTTP/PostgreSQL draft/approval and
 reprocessing endpoints using a fake parser. The actual provider adapter is tested
 with mocked HTTP responses (strict output, bad JSON, provider failure, no key).
-No live LLM API key/provider call has been used. I smoke-checked the supplier
+At the phase-five commit, no live LLM call had been made; the later live check
+is documented below. I smoke-checked the supplier
 score breakdown and manual JSON fallback in the local browser.
+
+
+A live check on 16 November used Groq openai/gpt-oss-120b with the user's key
+stored only in ignored .env. I tested a plain-text upload and a messy chat-style
+amendment. The first required manual semantic correction; the second produced
+a correct draft after tightening the scope/fallback instructions. Both were
+reviewed, approved and reprocessed. See docs/LIVE_LLM_CHECK.md. Earlier phase-five
+notes describe the state before this live check.

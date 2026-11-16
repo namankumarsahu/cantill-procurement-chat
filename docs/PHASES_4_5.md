@@ -49,3 +49,5 @@ routes, limits, conditions and named facts using the safe catalog need JSON only
 Requester intake chat, buyer approval/override and full audit UI, manual contract
 conflict resolution, Docker and public hosting remain later phases. Stop here
 after the phase-five commit.
+
+Subsequent live Groq verification is documented in [LIVE_LLM_CHECK.md](LIVE_LLM_CHECK.md).

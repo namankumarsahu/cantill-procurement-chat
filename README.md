@@ -168,8 +168,8 @@ in .env to enable an OpenAI-compatible chat-completions provider. By default,
 LLM_RESPONSE_FORMAT=json_schema requests strict structured edit output. For a
 provider supporting only JSON mode, explicitly set json_object; full local schema
 validation still runs. The selected provider receives the base policy and the
-uploaded amendment text, never PR/master data. No live provider was connected
-during development; provider tests use mocked responses.
+uploaded amendment text, never PR/master data. Automated provider tests use mocked responses; a separate live Groq check is
+documented in docs/LIVE_LLM_CHECK.md.
 
 API endpoints:
 
@@ -199,3 +199,10 @@ Download the v5.0 CSV before reprocessing with an amendment if both submission
 files are needed. Use explicit policy_version=5.0 to reproduce the baseline.
 
 [Phase 4/5 verification and limitations](docs/PHASES_4_5.md).
+
+
+Local Groq configuration is in ignored .env; keys must never be committed. On
+this Windows machine, NODE_USE_SYSTEM_CA=1 was set before starting Node so TLS
+uses the system trust store. No certificate verification was disabled. See the
+[live check report](docs/LIVE_LLM_CHECK.md) for actual drafts, manual correction,
+effective-date checks, and route changes.

@@ -92,8 +92,9 @@ test('OpenAI-compatible adapter requests strict edits and rejects bad JSON/provi
  let request:Record<string,unknown>={};
  const mock=(async(_url:unknown,init:RequestInit)=>{request=JSON.parse(String(init.body));return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({operations:cases[0].edits,unresolved:[]})}}]}),{status:200});})as typeof fetch;
  const config={base_url:'https://example.invalid/v1',model:'mock',api_key:'fake-test-key'};
- const edits=await parseAmendment('Raise limit',policy(),config,mock);assert.equal(edits.operations.length,1);assert.equal((request.response_format as {json_schema:{strict:boolean}}).json_schema.strict,true);
+ const edits=await parseAmendment('Raise limit',policy(),config,mock);assert.equal(edits.operations.length,1);assert.equal((request.response_format as {json_schema:{strict:boolean}}).json_schema.strict,true);assert.ok(!JSON.stringify(request.response_format).includes('starts_with'));
  await assert.rejects(parseAmendment('x',policy(),{},mock),/not configured/);
  await assert.rejects(parseAmendment('x',policy(),config,(async()=>new Response('{"choices":[{"message":{"content":"oops"}}]}'))as typeof fetch),/invalid/);
  await assert.rejects(parseAmendment('x',policy(),config,(async()=>new Response('',{status:500}))as typeof fetch),/HTTP 500/);
+ await assert.rejects(parseAmendment('x',policy(),config,(async()=>new Response(JSON.stringify({error:{message:`Rejected key ${config.api_key}`}}),{status:401}))as typeof fetch),(error:unknown)=>error instanceof Error&&error.message.includes('[redacted]')&&!error.message.includes(config.api_key));
 });

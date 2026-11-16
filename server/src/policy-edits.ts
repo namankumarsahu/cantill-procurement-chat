@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {validatePolicy,type Policy} from '../../engine/src/policy.js';
-export const editSchema=z.strictObject({operations:z.array(z.strictObject({op:z.enum(['add','replace','remove']),path:z.string().startsWith('/'),value_json:z.string().nullable()})).max(128),unresolved:z.array(z.string())});
+export const editSchema=z.strictObject({operations:z.array(z.strictObject({op:z.enum(['add','replace','remove']),path:z.string().regex(/^\//),value_json:z.string().nullable()})).max(128),unresolved:z.array(z.string())});
 export type PolicyEdits=z.infer<typeof editSchema>;
 export const editsJSONSchema=z.toJSONSchema(editSchema);
 export function applyPolicyEdits(base:Policy,input:unknown):Policy{
