@@ -257,3 +257,10 @@ first. The script refuses NODE_ENV=production.
 The reset was tested in an isolated disposable schema; only its dry run was
 executed against the local app. Existing demo versions and live runs were not
 deleted during this hardening task. See [verification](docs/AMENDMENT_HARDENING.md).
+
+## Requester and buyer workspace
+
+Open Request an item as Requester for chat intake, or Upload batch for CSV.
+Choose Buyer/Procurement and open Buyer workspace to review explanations,
+approve procurement documents or save a commented override. Audit log retains
+who/when/before/after. See [phase 6/7 notes](docs/PHASES_6_7.md).

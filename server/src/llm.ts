@@ -28,3 +28,14 @@ export async function parseAmendment(source:string,base:Policy,config=llmConfig(
 }
 
 export const draftPolicy:DraftParser=(source,base,context)=>parseAmendment(source,base,undefined,undefined,context);
+
+export async function structuredJSON(name:string,schema:unknown,messages:{role:string;content:string}[],config=llmConfig(),fetcher:typeof fetch=fetch):Promise<unknown>{
+ if(!configured(config))throw new Error('LLM is not configured');
+ const endpoint=new URL(config.base_url!.replace(/\/$/,'')+'/chat/completions');
+ if(endpoint.protocol!=='https:'&&!(endpoint.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(endpoint.hostname)))throw new Error('LLM endpoint must use HTTPS');
+ const response=await fetcher(endpoint,{method:'POST',signal:AbortSignal.timeout(45000),headers:{authorization:`Bearer ${config.api_key}`,'content-type':'application/json'},body:JSON.stringify({model:config.model,temperature:0,response_format:config.response_format==='json_object'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages})});
+ if(!response.ok)throw new Error(`LLM request failed (HTTP ${response.status})`);
+ const body=await response.json() as {choices?:{message?:{content?:string;refusal?:string}}[]};
+ const content=body.choices?.[0]?.message?.content;if(!content)throw new Error('LLM returned no JSON');
+ try{return JSON.parse(content);}catch{throw new Error('LLM returned invalid JSON');}
+}

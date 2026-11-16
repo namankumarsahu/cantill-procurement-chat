@@ -153,16 +153,21 @@ export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLin
       decision: outcome.decision, route: rule.outcome.route, supplier_id, unit_price, group_value_inr: value.toFixed(2), suggested_supplier_ids: suggestions, po_id: '', reason,
       policy_version: policy.version, clause: rule.clause, contract_id, valuation: { unit_price: valuationPrice.toString(), source: valuationSource }, rankings, flags, eligibility_po_numbers: [...eligibility].sort(compareText) };
   });
-  const purchase_orders: POProposal[] = [];
-  for (const req of requirements.filter(r => r.decision === 'PO')) {
-    let po = purchase_orders.find(p => p.supplier_id === req.supplier_id && p.plant === req.plant && p.route === req.route && instant(req.first_created_at)-instant(p.first_created_at) <= parameter(policy,'consolidation_hours')*HOUR_MS);
-    if (!po) { po = { po_id: `PO-${String(purchase_orders.length+1).padStart(4,'0')}`, supplier_id: req.supplier_id, plant: req.plant, route: req.route, first_created_at: req.first_created_at, group_ids: [] }; purchase_orders.push(po); }
-    po.group_ids.push(req.group_id); req.po_id = po.po_id;
-  }
+  const purchase_orders = consolidatePOs(requirements,policy);
   const byRow = new Map(requirements.flatMap(req => req.lines.map(line => [line.source_row,req] as const)));
   const rows = lines.map(line => {
     const req = byRow.get(line.source_row), reject = rejected.get(line.source_row);
     return { pr_no: line.pr_no, pr_line: line.pr_line, resolved_item_code: req?.resolved_item_code ?? reject?.code ?? '', group_id: req?.group_id ?? '', po_id: req?.po_id ?? '', decision: req?.decision ?? 'SOURCING_REQUEST', route: req?.route ?? 'NOT_PROCESSED', supplier_id: req?.supplier_id ?? '', unit_price: req?.unit_price ?? '', group_value_inr: req?.group_value_inr ?? '', suggested_supplier_ids: req?.suggested_supplier_ids.join(';') ?? '', policy_version: policy.version, reason: req?.reason ?? reject?.reason ?? 'Not processed' };
   });
   return { as_of_date, policy_version: policy.version, requirements, rows, purchase_orders, contract_consumed: Object.fromEntries([...consumed].map(([id,v]) => [id,v.toFixed(2)])) };
+}
+
+export function consolidatePOs(requirements:Requirement[],policy:Policy):POProposal[]{
+  const purchase_orders: POProposal[] = [];
+  for (const req of requirements.filter(r => r.decision === 'PO')) {
+    let po = purchase_orders.find(p => p.supplier_id === req.supplier_id && p.plant === req.plant && p.route === req.route && instant(req.first_created_at)-instant(p.first_created_at) <= parameter(policy,'consolidation_hours')*HOUR_MS);
+    if (!po) { po = { po_id: `PO-${String(purchase_orders.length+1).padStart(4,'0')}`, supplier_id: req.supplier_id, plant: req.plant, route: req.route, first_created_at: req.first_created_at, group_ids: [] }; purchase_orders.push(po); }
+    po.group_ids.push(req.group_id); req.po_id = po.po_id;
+  }
+  return purchase_orders;
 }

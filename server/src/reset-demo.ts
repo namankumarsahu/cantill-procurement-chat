@@ -9,6 +9,7 @@ export async function resetDemo(pool:pg.Pool,confirm=false,actor='demo-reset'){
   const policies=(await client.query("SELECT version FROM policy_versions WHERE version <> '5.0' ORDER BY version")).rows.map(r=>r.version as string);
   const runs=Number((await client.query('SELECT count(*) n FROM processing_runs')).rows[0].n);
   if(!confirm)return{dry_run:true,policies_to_delete:policies,runs_to_delete:runs};
+  await client.query('DELETE FROM contract_allocations');await client.query('DELETE FROM procurement_document_lines');await client.query('DELETE FROM buyer_decisions');await client.query('DELETE FROM procurement_documents');
   await client.query('DELETE FROM policy_impact_previews');await client.query('DELETE FROM processing_runs');
   await client.query("UPDATE policy_versions SET base_version=NULL WHERE version <> '5.0'");
   await client.query("DELETE FROM policy_versions WHERE version <> '5.0'");

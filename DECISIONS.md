@@ -303,3 +303,29 @@ requires --confirm-reset for deletion. It deletes non-v5.0 policies and all runs
 impact previews, restores the hand-authored v5.0 seed, and retains master data, raw
 batches, source evidence and prior audit history. It appends a reset audit event
 and refuses production mode. A real reset was tested only in a disposable schema.
+
+## Requester and buyer workflow
+
+Chat never receives authority to invent catalog entries: only deterministic
+matching or an explicit existing code can resolve an item. Low-confidence item
+families ask for a specification; genuinely unknown descriptions become NEW.
+The requester's estimated price and UOM are required for NEW, with no supplier
+suggestions and no automatic master creation. Urgent wording does not silently
+choose Emergency. Confirmation creates a PR and runs the same engine as CSV.
+
+Approvals are durable procurement documents, separate from engine proposals.
+A consolidated PO is approved as a whole. Replays return the same document;
+approved batches cannot be replaced with different results. Reprocessing an
+unapproved batch clears overrides and records them in its before audit snapshot.
+Buyer exceptions can change routing with a mandatory comment, but cannot bypass
+active-supplier checks, signed contract terms or ceilings, or turn NEW into a PO.
+The group value remains the policy's valuation; the order's negotiated unit
+price is shown separately. Contract allocations are recorded transactionally
+across approved runs, on top of imported opening consumption. Imports should
+exclude these local allocations from their opening balance to avoid counting
+them twice; this conservatively blocks an order if such a balance is uncertain.
+
+Roles and actor names are explicit demo UI inputs, not authenticated identities.
+Audit records persist before/after values and role where available. Remote
+buyer changes use the existing admin-token control. Demo reset also removes
+approval documents and allocations so runs can be deleted consistently.
