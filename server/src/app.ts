@@ -9,13 +9,15 @@ import { actor,adminOnly } from './auth.js';
 import {registerPolicyAPI} from './policy-api.js';
 import {registerChatAPI} from './chat-api.js';
 import {registerBuyerAPI} from './buyer-api.js';
+import {registerContractAPI} from './contract-api.js';
+import type {ContractParser} from './contracts.js';
 import type {IntakeParser} from './intake.js';
 import type {DraftParser} from './llm.js';
 import { registerSupplierAPI } from './supplier-api.js';
 import { registerBatchAPI } from './batch-api.js';
 
 export const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 10 } });
-export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, options: {policyParser?:DraftParser;intakeParser?:IntakeParser} = {}) {
+export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, options: {policyParser?:DraftParser;intakeParser?:IntakeParser;contractParser?:ContractParser} = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
@@ -38,6 +40,7 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, o
   registerBatchAPI(app,pool,upload);
   registerChatAPI(app,pool,options.intakeParser);
   registerBuyerAPI(app,pool,adminToken);
+  registerContractAPI(app,pool,upload,adminToken,options.contractParser);
   registerSupplierAPI(app,pool);
   registerPolicyAPI(app,pool,upload,adminToken,options.policyParser);
   app.use(express.static(fileURLToPath(new URL('../../web/dist', import.meta.url))));

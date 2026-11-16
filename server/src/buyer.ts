@@ -46,6 +46,7 @@ export async function overrideRequirement(client:pg.PoolClient,runId:string,grou
  await client.query('INSERT INTO audit_events(actor,role,action,before,after) VALUES($1,$2,$3,$4,$5)',[who,role,'REQUIREMENT_OVERRIDDEN',old,changed]);return buyerView(client,run);
 }
 export async function approveRequirement(client:pg.PoolClient,runId:string,groupId:string,who:string,role:string){
+ await client.query("SELECT pg_advisory_xact_lock(hashtext('corvo_import'))");
  const run=(await client.query('SELECT * FROM processing_runs WHERE id=$1 AND is_current FOR UPDATE',[runId])).rows[0];if(!run)throw new Error('Current run not found');
  const existing=(await client.query('SELECT document_id FROM buyer_decisions WHERE run_id=$1 AND group_id=$2',[runId,groupId])).rows[0];
  if(existing?.document_id)return{document:(await client.query('SELECT * FROM procurement_documents WHERE id=$1',[existing.document_id])).rows[0],reused:true};

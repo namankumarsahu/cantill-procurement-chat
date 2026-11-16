@@ -264,3 +264,8 @@ Open Request an item as Requester for chat intake, or Upload batch for CSV.
 Choose Buyer/Procurement and open Buyer workspace to review explanations,
 approve procurement documents or save a commented override. Audit log retains
 who/when/before/after. See [phase 6/7 notes](docs/PHASES_6_7.md).
+
+Contracts reconciles the register with all stored PDFs. Choose a validity date,
+open signed evidence, then prepare a PDF extraction or manual draft as Buyer.
+Review and confirm the signed terms and opening balance before they affect new
+processing. No key still supports deterministic extraction and manual entry.

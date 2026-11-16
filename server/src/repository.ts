@@ -26,13 +26,15 @@ async function insertRows(client: pg.PoolClient, table: string, rows: Record<str
   }
 }
 export async function saveImport(pool: pg.Pool, kit: KitImport, actor: string): Promise<{ import_id: string; reused: boolean; counts: Record<string, number>; warnings: string[]; batch_id?: string }> {
+  return transaction(pool, client => saveImportInTransaction(client,kit,actor));
+}
+export async function saveImportInTransaction(client:pg.PoolClient,kit:KitImport,actor:string):Promise<{import_id:string;reused:boolean;counts:Record<string,number>;warnings:string[];batch_id?:string}>{
   const counts = { items: kit.data.items.length, suppliers: kit.data.suppliers.length, plants: kit.data.plants.length, po_history: kit.data.po_history.length, contracts: kit.data.contracts.length, contract_lines: kit.data.contracts.reduce((n,c) => n+c.lines.length, 0), documents: kit.documents.length, pr_lines: kit.batch.length };
-  return transaction(pool, async client => {
     await client.query("SELECT pg_advisory_xact_lock(hashtext('corvo_import'))");
     const old = await client.query('SELECT id FROM imports WHERE fingerprint=$1', [kit.fingerprint]);
     if (old.rowCount) return { import_id: old.rows[0].id, reused: true, counts, warnings: kit.warnings };
     const import_id = randomUUID();
-    await client.query('INSERT INTO imports(id,fingerprint,snapshot_date,actor,counts,warnings) VALUES($1,$2,$3,$4,$5,$6)', [import_id, kit.fingerprint, kit.snapshot_date, actor, counts, JSON.stringify(kit.warnings)]);
+    await client.query('INSERT INTO imports(id,fingerprint,snapshot_date,actor,counts,warnings,created_at) VALUES($1,$2,$3,$4,$5,$6,clock_timestamp())', [import_id, kit.fingerprint, kit.snapshot_date, actor, counts, JSON.stringify(kit.warnings)]);
     const withImport = (rows: object[]) => rows.map(r => ({ import_id, ...r }));
     await insertRows(client, 'plants', withImport(kit.data.plants));
     await insertRows(client, 'items', withImport(kit.data.items));
@@ -40,7 +42,7 @@ export async function saveImport(pool: pg.Pool, kit: KitImport, actor: string): 
     await insertRows(client, 'po_history', withImport(kit.data.po_history));
     await insertRows(client, 'contracts', withImport(kit.data.contracts.map(({ lines: _, ...c }) => c)));
     await insertRows(client, 'contract_lines', withImport(kit.data.contracts.flatMap(c => c.lines.map(l => ({ contract_id: c.contract_id, ...l })))));
-    await insertRows(client, 'source_documents', withImport(kit.documents.map(({ text, ...d }) => ({ ...d, source_text: text }))));
+    await insertRows(client, 'source_documents', withImport(kit.documents.map(({ text, contract_id, ...d }) => ({ ...d, contract_id:contract_id??null, source_text: text }))));
     let batch_id: string | undefined;
     if (kit.batch.length) {
       batch_id = randomUUID();
@@ -49,7 +51,6 @@ export async function saveImport(pool: pg.Pool, kit: KitImport, actor: string): 
     }
     await client.query('INSERT INTO audit_events(actor,action,after) VALUES($1,$2,$3)', [actor, 'IMPORT_MASTER_DATA', { import_id, counts, warnings: kit.warnings }]);
     return { import_id, batch_id, reused: false, counts, warnings: kit.warnings };
-  });
 }
 export async function loadMasterData(client: pg.Pool | pg.PoolClient, importId?: string): Promise<{ import_id: string; data: MasterData }> {
   const result = importId ? await client.query('SELECT id FROM imports WHERE id=$1', [importId]) : await client.query('SELECT id FROM imports ORDER BY created_at DESC,id DESC LIMIT 1');

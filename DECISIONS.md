@@ -329,3 +329,25 @@ Roles and actor names are explicit demo UI inputs, not authenticated identities.
 Audit records persist before/after values and role where available. Remote
 buyer changes use the existing admin-token control. Demo reset also removes
 approval documents and allocations so runs can be deleted consistently.
+
+## Contract register and PDF review
+
+Contract extraction is a draft, never authority to activate terms. Parse the
+known signed-PDF format deterministically first; use a strict nullable LLM
+extractor only for readable text that this parser cannot interpret. Empty/scanned
+PDFs go straight to manual entry, without asking a model to invent unseen terms.
+Every field remains editable and requires buyer acknowledgement and a review
+comment. Reconciliation lists actual signed-field differences against the stored
+master, including full item/rate/UOM coverage; decimal formatting alone is not a
+discrepancy. Opening consumption is not printed as a signed ceiling and cannot
+be inferred from it. Retain the existing balance when editing; require a stated
+balance/date for new older contracts. A new contract starting after the imported
+snapshot may propose zero at start, still subject to confirmation.
+
+Contract confirmation copies master data and evidence into a new immutable
+import snapshot so historical run evidence remains reproducible. It refuses
+stale drafts when another master update has already become current. Identical
+confirmation replay does not create another import. Both manual and extracted
+contracts use the engine's existing contract selection; no routing thresholds
+or windows are added to the UI or extractor. Historical expired/nonactive
+contracts remain visible and unusable, rather than being deleted.

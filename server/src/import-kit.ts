@@ -8,7 +8,7 @@ import { Decimal } from 'decimal.js';
 import { readCSV, parsePRCSV } from './csv.js';
 import type { MasterData, Contract, ContractLine, PRLine } from '../../engine/src/types.js';
 
-export interface SourceDocument { filename: string; sha256: string; bytes: Buffer; text: string }
+export interface SourceDocument { filename: string; sha256: string; bytes: Buffer; text: string; contract_id?:string|null }
 export interface KitImport { data: MasterData; batch: PRLine[]; documents: SourceDocument[]; warnings: string[]; fingerprint: string; snapshot_date: string }
 export type KitFiles = Map<string, Buffer>;
 export const sha256 = (data: Buffer | string): string => createHash('sha256').update(data).digest('hex');

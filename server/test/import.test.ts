@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { readCSV, parsePRCSV } from '../src/csv.js';
 import { inspectKit, readKitDirectory, readKitZip, parseContractText } from '../src/import-kit.js';
 import { zipSync, strToU8 } from 'fflate';
+import {reconcileContracts} from '../src/contracts.js';
 
 test('CSV handles quoted delimiters and rejects malformed/duplicate headers', () => {
   assert.deepEqual(readCSV('code,description\r\na,"nuts, bolts"\r\n', ['code', 'description']), [{ code: 'a', description: 'nuts, bolts' }]);
@@ -30,4 +31,7 @@ test('kit import reconciles all PDFs, retains raw PR anomalies, and finds PDF-on
   assert.ok(kit.batch.some(r => r.quantity === '0'));
   assert.ok(kit.warnings.some(w => w.includes('58 historical POs')));
   assert.equal(kit.snapshot_date, '2026-10-31');
+  const reconciled=reconcileContracts(kit.data,kit.documents,'2026-11-16');
+  assert.equal(reconciled.contracts.filter(c=>c.reconciliation==='MATCHED').length,12);
+  assert.deepEqual(reconciled.contracts.filter(c=>c.source==='pdf_only').map(c=>c.contract_id).sort(),['RC-2026-031','RC-2026-033']);
 });
