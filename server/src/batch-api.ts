@@ -8,6 +8,7 @@ import { decisionsCSV } from './export.js';
 import { batchAsOf, processBatch, type BatchResult } from '../../engine/src/process.js';
 import {buyerView} from './buyer.js';
 import {processLines} from './process-lines.js';
+import {exportPrefix,exportFilename} from './export-filename.js';
 
 const optionsSchema = z.strictObject({ as_of_date: z.iso.date().optional(), policy_version: z.string().min(1).optional(), import_id: z.uuid().optional() });
 export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Multer): void {
@@ -32,8 +33,9 @@ export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Mul
   });
   app.get('/api/runs/:id/export', async (req,res) => {
     const id = z.uuid().parse(req.params.id);
+    const naming=z.strictObject({prefix:exportPrefix.optional(),run:z.enum(['run1','run2']).optional()}).parse(req.query);
     const result = await pool.query('SELECT * FROM processing_runs WHERE id=$1',[id]);
     if (!result.rowCount) { res.status(404).json({ error: 'Run not found' }); return; }
-    res.type('text/csv').attachment(`decisions-${id}.csv`).send(decisionsCSV((await buyerView(pool,result.rows[0])).rows));
+    res.type('text/csv').attachment(exportFilename(naming.prefix,naming.run??'decisions',`decisions-${id}.csv`)).send(decisionsCSV((await buyerView(pool,result.rows[0])).rows));
   });
 }
