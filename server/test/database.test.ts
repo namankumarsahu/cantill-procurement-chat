@@ -38,6 +38,11 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
     try {
       const url = `http://127.0.0.1:${address.port}`;
       assert.equal((await fetch(`${url}/api/health`)).status, 200);
+      const suppliersResponse=await fetch(`${url}/api/preferred-suppliers?as_of_date=2026-11-02`);
+      assert.equal(suppliersResponse.status,200);const suppliers=await suppliersResponse.json();assert.equal(suppliers.items.length,1);assert.deepEqual(suppliers.items[0].suppliers,[]);
+      const supplierExport=await fetch(`${url}/api/preferred-suppliers/export?as_of_date=2026-11-02`);assert.equal(supplierExport.status,200);assert.equal((await supplierExport.text()).trim(),'item_code,rank,supplier_id,reference_price');
+      assert.equal((await fetch(`${url}/api/preferred-suppliers?as_of_date=bad`)).status,400);
+
       assert.equal((await fetch(`${url}/api/admin/import-master`, { method: 'POST' })).status, 401);
       const scheduled=await loadSeedPolicy(); scheduled.version='future-approved'; scheduled.effective_date='2027-01-01';
       await pool.query('INSERT INTO policy_versions(version,effective_date,status,document,created_by,approved_by,approved_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[scheduled.version,scheduled.effective_date,scheduled.status,scheduled,scheduled.created_by,scheduled.approved_by,scheduled.approved_at]);

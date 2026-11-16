@@ -8,7 +8,7 @@ import { parsePRCSV } from './csv.js';
 import { loadMasterData } from './repository.js';
 import { decisionsCSV } from './export.js';
 import { batchAsOf, processBatch, type BatchResult } from '../../engine/src/process.js';
-import { validatePolicy } from '../../engine/src/policy.js';
+import { selectPolicy } from './policy-selection.js';
 
 const optionsSchema = z.strictObject({ as_of_date: z.iso.date().optional(), policy_version: z.string().min(1).optional(), import_id: z.uuid().optional() });
 export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Multer): void {
@@ -22,11 +22,7 @@ export function registerBatchAPI(app: Express, pool: pg.Pool, upload: multer.Mul
     if (actor.length > 100) throw new Error('x-actor exceeds 100 characters');
     const saved = await transaction(pool, async client => {
       const master = await loadMasterData(client, options.import_id);
-      const policies = options.policy_version
-        ? await client.query("SELECT document FROM policy_versions WHERE version=$1 AND status <> 'draft' AND approved_at IS NOT NULL AND effective_date <= $2",[options.policy_version,as_of_date])
-        : await client.query("SELECT document FROM policy_versions WHERE status <> 'draft' AND approved_at IS NOT NULL AND effective_date <= $1 ORDER BY effective_date DESC,approved_at DESC,version DESC LIMIT 1",[as_of_date]);
-      if (!policies.rowCount) throw new Error('No approved policy effective on the requested as-of date');
-      const policy = validatePolicy(policies.rows[0].document), result = processBatch(policy,master.data,lines,{ as_of_date });
+      const policy = await selectPolicy(client,as_of_date,options.policy_version), result = processBatch(policy,master.data,lines,{ as_of_date });
       const run_id = randomUUID(), batch_id = randomUUID();
       await client.query('INSERT INTO batches(id,import_id,filename,actor) VALUES($1,$2,$3,$4)',[batch_id,master.import_id,req.file!.originalname,actor]);
       await client.query('INSERT INTO pr_lines(batch_id,source_row,raw) SELECT $1,(r->>\'source_row\')::integer,r FROM jsonb_array_elements($2::jsonb) r',[batch_id,JSON.stringify(lines)]);

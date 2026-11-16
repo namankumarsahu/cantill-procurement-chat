@@ -128,3 +128,17 @@ Thresholds and history/clubbing/consolidation windows live in
 `server/policies/v5.0.json`. Tests demonstrate raising the spot limit, adding a
 plant-only restriction, and adding a sourcing route using JSON changes alone.
 Uploading and approving amendments through the app is phase 5, not yet available.
+
+
+## Preferred suppliers (phase 4)
+
+Use the Preferred suppliers screen, choose an as-of date and calculate. Expand an
+item to see eligible suppliers, factor contributions and reference-price evidence.
+Download exports the top three eligible suppliers per item with exactly
+`item_code,rank,supplier_id,reference_price`. Items with no eligible suppliers
+remain visible in the UI and contribute no CSV rows.
+
+GET /api/preferred-suppliers and /api/preferred-suppliers/export take required
+`as_of_date` and optional `policy_version`, `import_id`, and `item_code`. The UI
+pins both the returned policy and import snapshot in its export link. Weights,
+recency bands and eligibility windows come from the chosen policy JSON.

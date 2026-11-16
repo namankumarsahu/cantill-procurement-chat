@@ -6,6 +6,7 @@ import { ZodError } from 'zod';
 import type pg from 'pg';
 import { inspectKit, readKitZip } from './import-kit.js';
 import { saveImport } from './repository.js';
+import { registerSupplierAPI } from './supplier-api.js';
 import { registerBatchAPI } from './batch-api.js';
 
 export const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 10 } });
@@ -43,6 +44,7 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN) {
     res.status(201).json(await saveImport(pool, kit, actingUser));
   });
   registerBatchAPI(app,pool,upload);
+  registerSupplierAPI(app,pool);
   app.use(express.static(fileURLToPath(new URL('../../web/dist', import.meta.url))));
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (error instanceof multer.MulterError) { res.status(413).json({ error: error.message }); return; }

@@ -38,3 +38,10 @@ export function suggestSuppliers(item: Item, rankings: RankedSupplier[], count: 
     .sort((a,b) => performance(b)-performance(a) || b.on_time_pct-a.on_time_pct || b.quality_rating-a.quality_rating || compareText(a.supplier_id,b.supplier_id));
   return [...preferred, ...others.map(s => s.supplier_id)].slice(0, count);
 }
+
+export function preferredSupplierLists(data:MasterData,date:string,policy:Policy){
+  return [...data.items].sort((a,b)=>compareText(a.item_code,b.item_code)).map(item=>({
+    item_code:item.item_code,description:item.description,
+    suppliers:rankSuppliers(item,date,data,policy).map(s=>({...s,name:data.suppliers.find(v=>v.supplier_id===s.supplier_id)!.name})),
+  }));
+}

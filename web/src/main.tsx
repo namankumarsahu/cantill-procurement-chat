@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import {Suppliers} from './Suppliers';
 
 interface Preview { preview?: boolean; fingerprint?: string; snapshot_date?: string; warnings?: string[]; counts?: Record<string, number>; contracts?: unknown[]; import_id?: string; reused?: boolean }
 function App() {
@@ -40,6 +41,7 @@ function App() {
         <button disabled={busy || !file}>{busy ? 'Reading kit…' : result?.preview ? 'Confirm and import' : 'Preview import'}</button>
       </form>
     </section>
+    <Suppliers/>
     <section><h2>Current data</h2><pre>{JSON.stringify(status, null, 2) || 'Loading…'}</pre></section>
   </main>;
 }
