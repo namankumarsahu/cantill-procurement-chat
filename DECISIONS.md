@@ -86,8 +86,12 @@ whole group Emergency.
 Use exact decimal arithmetic; PostgreSQL stores NUMERIC and engine money uses
 decimal-safe arithmetic. Keep precision through quantity multiplication and round
 monetary amounts half-up to two decimal places at the requirement boundary.
-Do not round to whole rupees before comparing a limit. CSV rates/totals preserve
-paisa; the worked examples use rounded display values.
+Do not round to whole rupees before comparing a limit. Internal decisions, saved
+runs, and JSON API values keep paisa. Only the CSV group_value_inr column rounds
+to the nearest whole rupee using decimal half-up rounding: .50 rounds up (for
+example, 32,546.60 becomes 32,547 and 100.49 becomes 100). Empty values on rejected
+rows stay empty. Unit prices keep their precision. CSV formatting never changes
+the values used for route limits, contract ceilings, or audit evidence.
 
 An applicable contract needs a matching item/UOM, inclusive valid dates, and an
 Active supplier. Check the whole group quantity at each candidate's own rate.
@@ -212,7 +216,8 @@ contract consumption in master data.
 
 The fourteen worked scenarios match routes, exact source-data money, suppliers,
 ordered suggestions, and illustrated grouping/consolidation relationships. The
-PDF displays whole rupees; tests and CSV preserve paisa. PO identifiers are run-
+PDF displays whole rupees; internal tests preserve paisa, and CSV group values
+use the whole-rupee half-up rounding rule above. PO identifiers are run-
 scoped labels, not answer-key constants. The sample has an eligible early servo
 requirement at 08:10, so the oil example at 09:40 is PO-0002 here rather than the
 PDF's PO-0001. Tests assert stable numbering and real consolidation membership.

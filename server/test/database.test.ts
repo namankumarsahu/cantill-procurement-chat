@@ -55,7 +55,12 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
       assert.equal(exported.status,200); assert.match(exported.headers.get('content-type')!,/text\/csv/);
       const text=await exported.text(); assert.equal(text.split('\r\n')[0],exportColumns.join(','));
       const roundTrip=readCSV(text,[...exportColumns]); assert.equal(roundTrip.length,2);
-      assert.deepEqual(roundTrip,run.rows);
+      assert.equal(roundTrip[0].group_value_inr,'21');
+      assert.equal(run.rows[0].group_value_inr,'20.50');
+      const {group_value_inr: csvValue,...csvFields}=roundTrip[0];
+      const {group_value_inr: apiValue,...apiFields}=run.rows[0];
+      assert.deepEqual(csvFields,apiFields);
+      assert.deepEqual(roundTrip[1],run.rows[1]);
       assert.equal((await fetch(`${url}/api/runs/${run.run_id}`)).status,200);
       assert.equal((await pool.query('SELECT count(*)::int n FROM processing_runs')).rows[0].n,1);
       assert.equal((await pool.query('SELECT count(*)::int n FROM pr_lines')).rows[0].n,2);

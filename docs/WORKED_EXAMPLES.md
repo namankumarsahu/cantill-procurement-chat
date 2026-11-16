@@ -6,7 +6,8 @@ contracts, and the hand-authored v5.0 seed. 14/14 scenarios pass.
 Checks include route, exact source-data valuation, PO supplier/rate or ordered
 sourcing suggestions, supporting contract, provenance, and the grouping or
 consolidation relationships illustrated by each scenario. PDF display values
-round to whole rupees; exports preserve paisa.
+round to whole rupees; CSV group values round half-up to whole rupees while
+internal values and JSON retain paisa.
 
 | # | Scenario | Result | Route | Exact INR value (PDF display) | Detail |
 | --- | --- | --- | --- | --- | --- |

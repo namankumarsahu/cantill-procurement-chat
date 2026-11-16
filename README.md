@@ -107,7 +107,9 @@ The JSON response contains `run_id`, `rows` (one per input line), `requirements`
 Processing does not place orders or consume live ceilings.
 
 Fetch `GET /api/runs/<run_id>/export` for the exact required CSV column order,
-or `GET /api/runs/<run_id>` for the saved result. Runs retain policy JSON and an
+or `GET /api/runs/<run_id>` for the saved result. In CSV only, `group_value_inr`
+rounds half-up to the nearest rupee; JSON and stored values keep paisa, and
+unit prices retain their precision. Runs retain policy JSON and an
 immutable master-data snapshot reference. Invalid rows remain in the export with
 route NOT_PROCESSED and a reason. Formula-like text is escaped for spreadsheet
 safety; API values preserve the original input.
