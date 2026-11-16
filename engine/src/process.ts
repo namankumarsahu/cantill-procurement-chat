@@ -114,6 +114,11 @@ export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLin
       'requirement.is_new': !item, 'item.item_type': item?.item_type ?? '', 'item.category': item?.category ?? '',
       'requirement.plant': first.line.plant, 'requirement.is_emergency': emergency,
       'requirement.valuation_inr': value, 'contract_selection.has_usable_contract': !!contract?.usable,
+      'requirement.quantity': quantity, 'requirement.line_count': group.length,
+      'requirement.requirement_date': date, 'requirement.department': first.line.department,
+      'requirement.requester': first.line.requester, 'item.uom': item?.uom ?? first.line.uom,
+      'item.description': item?.description ?? first.line.description,
+      'item.standard_price': new Decimal(item?.standard_price ?? 0),
     };
     const eligibility = new Set<string>();
     const facts = Object.fromEntries(Object.entries(policy.fact_registry).map(([name,f]) => {

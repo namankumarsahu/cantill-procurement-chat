@@ -9,9 +9,10 @@ to inspect all rows, and bundled pypdf layout extraction to read all 15 PDFs.
 Poppler's pdftotext was not installed. Extracted text and the inspection report
 remain in ignored kit_data. No source datasets or signed PDFs are committed.
 
-No runtime LLM provider is connected yet. The planned integration accepts an
+No runtime LLM provider is connected yet. The implemented integration accepts an
 OpenAI-compatible base URL, model, and key through environment variables. It
-will parse chat and policy text into validated JSON. The deterministic engine
+parses policy text into validated edits and a full policy draft. Requester chat
+parsing remains a later phase. The deterministic engine
 will make procurement decisions. With no API key, deterministic intake and
 manual policy JSON editing must remain available.
 
@@ -40,3 +41,16 @@ addition to synthetic boundary tests and the fourteen worked scenarios. Ranking
 uses the documented weights consistently; category top-up uses the delivery and
 quality components together. No sample PR, item or supplier identifiers occur
 in engine source. Fixture references exist only in tests.
+
+
+Phases 4/5 reuse the ranking engine for dated lists and exports. The policy parser
+uses fetch against an OpenAI-compatible chat-completions endpoint with a strict
+edit-envelope schema; all edited policies are validated locally. I consulted the
+official structured-output documentation:
+[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+
+I tested four fake amendments through real HTTP/PostgreSQL draft/approval and
+reprocessing endpoints using a fake parser. The actual provider adapter is tested
+with mocked HTTP responses (strict output, bad JSON, provider failure, no key).
+No live LLM API key/provider call has been used. I smoke-checked the supplier
+score breakdown and manual JSON fallback in the local browser.

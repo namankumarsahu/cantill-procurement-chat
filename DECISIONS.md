@@ -1,7 +1,7 @@
 # Decisions
 
-The import and engine choices below are implemented and tested through phase 3.
-Policy-update and buyer-approval workflows describe later-phase behavior.
+Import, engine, supplier-list and policy-update choices are implemented through
+phase 5. Buyer-approval workflows still describe later-phase behavior.
 
 ## Dates and policy selection
 
@@ -135,8 +135,8 @@ snapshot is supplied. Do not subtract the history again from registered totals.
 Simulation and approval are separate. Each replay starts from its recorded
 baseline and does not consume live ceilings. Actual approval transactionally
 rechecks the contract using its current approved consumption and locks it;
-otherwise require reprocessing. Preserve completed run inputs/results to avoid
-changing yesterday's answer after a new import.
+otherwise require reprocessing. Preserve prior run inputs/results in the audit log; reprocessing explicitly
+replaces the current result while retaining its old policy and result as evidence.
 
 ## Preferred suppliers
 
@@ -221,3 +221,44 @@ use the whole-rupee half-up rounding rule above. PO identifiers are run-
 scoped labels, not answer-key constants. The sample has an eligible early servo
 requirement at 08:10, so the oil example at 09:40 is PO-0002 here rather than the
 PDF's PO-0001. Tests assert stable numbering and real consolidation membership.
+
+
+## Phase-5 policy approval and future facts
+
+The LLM returns an array of add/replace/remove data edits, plus any unresolved
+questions. A strict JSON Schema constrains that envelope, and the full resulting
+policy passes the engine schema and semantic validation before saving. JSON
+pointer paths are limited to policy behavior sections; metadata, prototype paths,
+JavaScript, SQL, and unknown fact sources cannot be supplied as executable edits.
+If anything is unresolved, no draft is guessed and no active policy changes.
+
+The manual editor uses exactly the same policy validation. Creator, approval,
+version and effective-date metadata are server-owned. The reviewer sees each
+parameter and rule change with before/after conditions, rule order, route, and
+registry/config changes. Approval checks a content hash and the base version
+inside a transaction; editing or changing that base invalidates prior approval.
+All approval and status changes record actor, time, and before/after values.
+
+Approved future versions are scheduled. The active version for any as-of date
+is derived from approved effective dates, with approval timestamp and version as
+deterministic tie breakers. No timer or browser session is required to make a
+version effective. Older versions remain approved historical replay candidates.
+Stored active status also represents an approved future version; the API exposes
+its date-aware lifecycle as scheduled until it becomes effective.
+
+A new named fact can bind to an existing safe source without code changes. The
+capability catalog includes quantity, line count, date, first-line department and
+requester, item UOM/description/standard price, existing requirement facts, and
+parameterized active-supplier purchase existence. Quantity is the full clubbed
+quantity; department/requester come from the group's first line. The v5 policy
+does not declare quantity, but the fourth amendment adds total_quantity and a
+new BULK_REVIEW route entirely as JSON. New condition trees use the existing
+all/any/not and typed operators. A genuinely new algorithm or external fact source
+is rejected for clarification; a JSON registry cannot invent data the app lacks.
+
+Reprocessing uses a hash of canonical parsed input rows, excluding filename and
+actor. The same content has one current run even if policy/date/master snapshot
+changes. Requests lock that batch, preserve the previous result/policy in audit,
+and replace current PO proposals. No live contract consumption or actual order
+records are created by processing. Legacy duplicate uploads are linked to one
+canonical batch; earlier legacy runs are retained as non-current history.

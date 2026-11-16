@@ -72,7 +72,7 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
       const replay=new FormData(); replay.set('file',new Blob([csv]),'replay.csv'); replay.set('as_of_date','2026-11-02');
       const replayResponse=await fetch(`${url}/api/process-batch`,{method:'POST',body:replay});
       const replayRun=await replayResponse.json(); assert.equal(replayResponse.status,200,JSON.stringify(replayRun));
-      assert.equal(replayRun.policy_version,'5.0'); assert.deepEqual(replayRun.rows,run.rows);
+      assert.equal(replayRun.policy_version,'5.0'); assert.deepEqual(replayRun.rows,run.rows);assert.equal(replayRun.run_id,run.run_id);assert.equal(replayRun.batch_id,run.batch_id);assert.equal(replayRun.replaced,true);
       const future=new FormData();future.set('file',new Blob([csv]),'future.csv');future.set('policy_version','future-approved');future.set('as_of_date','2026-11-02');
       assert.equal((await fetch(`${url}/api/process-batch`,{method:'POST',body:future})).status,400);
 
@@ -80,7 +80,7 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
       assert.equal((await fetch(`${url}/api/process-batch`,{method:'POST',body:bad})).status,400);
       const draft=new FormData(); draft.set('file',new Blob([csv]),'synthetic.csv'); draft.set('params','{"policy_version":"not-approved"}');
       assert.equal((await fetch(`${url}/api/process-batch`,{method:'POST',body:draft})).status,400);
-      assert.equal((await pool.query('SELECT count(*)::int n FROM processing_runs')).rows[0].n,2);
+      assert.equal((await pool.query('SELECT count(*)::int n FROM processing_runs')).rows[0].n,1);
 
     } finally { await new Promise<void>((resolve,reject) => server.close(e => e ? reject(e) : resolve())); }
   } finally {

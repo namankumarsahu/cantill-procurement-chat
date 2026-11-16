@@ -17,6 +17,10 @@ export const sourceTypes = {
   'requirement.is_new': 'boolean', 'item.item_type': 'string', 'item.category': 'string',
   'requirement.plant': 'string', 'requirement.is_emergency': 'boolean',
   'requirement.valuation_inr': 'number', 'contract_selection.has_usable_contract': 'boolean',
+  'requirement.quantity': 'number', 'requirement.line_count': 'number',
+  'requirement.requirement_date': 'string', 'requirement.department': 'string',
+  'requirement.requester': 'string', 'item.uom': 'string', 'item.description': 'string',
+  'item.standard_price': 'number',
 } as const;
 const fact = z.union([
   z.strictObject({ type: z.enum(['string', 'number', 'boolean']), source: z.enum(Object.keys(sourceTypes) as [keyof typeof sourceTypes, ...Array<keyof typeof sourceTypes>]) }),
@@ -28,7 +32,7 @@ const route = z.strictObject({
   price_strategy: z.enum(['selected_contract', 'supplier_reference']).optional(),
   suggest_count: amount, flags: z.array(z.string()),
 });
-const schema = z.strictObject({
+export const policySchema = z.strictObject({
   schema_version: z.literal(1), version: z.string().min(1), effective_date: z.iso.date(),
   status: z.enum(['draft', 'active', 'superseded']), created_by: z.string().min(1),
   approved_by: z.string().nullable(), approved_at: z.iso.datetime({ offset: true }).nullable(), source_text: z.string().min(1),
@@ -45,17 +49,17 @@ const schema = z.strictObject({
   }),
   matching: z.strictObject({ confidence_threshold: z.number().min(0).max(1), candidate_threshold: z.number().min(0).max(1), winner_margin: z.number().min(0).max(1), aliases: z.record(z.string(), z.string()), ignored_phrases: z.array(z.string()), require_compatible_model_tokens: z.boolean() }),
 });
-export type Policy = z.infer<typeof schema>;
+export type Policy = z.infer<typeof policySchema>;
 export function parameter(policy: Policy, name: string): number {
   const value = policy.parameters[name];
-  if (value === undefined) throw new Error(`Missing policy parameter: ${name}`);
+  if (!Object.hasOwn(policy.parameters,name)) throw new Error(`Missing policy parameter: ${name}`);
   return value;
 }
 export function resolveOperand(policy: Policy, value: Operand): Scalar | Scalar[] {
   return typeof value === 'object' && !Array.isArray(value) ? parameter(policy, value.parameter) : value;
 }
 export function validatePolicy(input: unknown): Policy {
-  const p = schema.parse(input);
+  const p = policySchema.parse(input);
   const fail = (message: string): never => { throw new Error(`Invalid policy: ${message}`); };
   for (const name of ['clubbing_created_days', 'clubbing_need_by_days', 'valuation_history_days', 'eligibility_history_days', 'preferred_history_days', 'consolidation_hours']) {
     if (!Number.isInteger(parameter(p, name))) fail(`${name} must be an integer`);
@@ -71,7 +75,8 @@ export function validatePolicy(input: unknown): Policy {
     if (depth > 32) fail('condition nesting exceeds supported depth');
     if ('all' in c || 'any' in c) { for (const child of 'all' in c ? c.all : c.any) check(child, depth + 1); return; }
     if ('not' in c) { check(c.not, depth + 1); return; }
-    const f = p.fact_registry[c.fact] ?? fail(`unknown fact ${c.fact}`);
+    if (!Object.hasOwn(p.fact_registry,c.fact)) fail(`unknown fact ${c.fact}`);
+    const f = p.fact_registry[c.fact];
     const v = resolveOperand(p, c.value);
     if (['gt', 'gte', 'lt', 'lte'].includes(c.operator) && (f.type !== 'number' || typeof v !== 'number')) fail('numeric comparison needs numbers');
     if (c.operator === 'between' && (f.type !== 'number' || !Array.isArray(v) || v.length !== 2 || v.some(x => typeof x !== 'number') || v[0] > v[1])) fail('between needs an ordered numeric pair');

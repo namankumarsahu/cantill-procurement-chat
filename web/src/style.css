@@ -28,3 +28,9 @@ summary { cursor:pointer; font-weight:650; padding:12px 0; }
 article { padding:12px 0; border-top:1px solid #d7e3df; }
 a { color:#125c4e; }
 textarea,select { width:100%; padding:10px; border:1px solid #a3bab2; border-radius:7px; font:inherit; }
+
+nav { display:flex;flex-wrap:wrap;gap:8px;margin-top:24px; }
+button.secondary { background:transparent;color:#125c4e;border:1px solid #aac5bc;padding:8px 12px;margin:6px 4px 6px 0; }
+button[aria-pressed=true] { background:#d9eee5;border-color:#125c4e; }
+textarea { font-family:ui-monospace,monospace;font-size:13px; }
+td { overflow-wrap:anywhere;min-width:100px; }

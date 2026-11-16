@@ -2,7 +2,7 @@
 
 A policy-driven PR-to-PO take-home project for Cantill.ai.
 
-Current status: **phase 3 complete: deterministic engine, batch API, and CSV export**. Read [the review and proposed schema](docs/PHASE_1.md),
+Current status: **phase 5 complete: supplier lists and policy update workflow**. Read [the review and proposed schema](docs/PHASE_1.md),
 [business decisions](DECISIONS.md), and [tool disclosure](APPROACH.md).
 
 ## Local kit
@@ -61,7 +61,7 @@ different kit directory. Synthetic tests always run.
 - `ADMIN_TOKEN`: bearer token for imports; required in production. Without one,
   the server binds to loopback and accepts imports only from loopback.
 - `SEED_ACTOR`: optional CLI audit actor; the web API requires `x-actor`.
-- `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`: reserved for later parsing features.
+- `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`: optional policy-draft parsing settings.
 
 `GET /api/health` checks the database. `GET /api/status` lists the current import
 and policies. `POST /api/admin/import-master` accepts multipart `file` (ZIP), optional
@@ -74,8 +74,10 @@ the reviewed content. Uploads are limited to 10 MB compressed / 50 MB expanded.
 TypeScript monorepo: pure `engine/`, Express `server/`, React `web/`, PostgreSQL.
 Phase 2 includes migrations, imports, policy validation and the hand-authored v5 seed.
 Phase 3 includes the pure engine, supplier ranking needed for decisions, the batch
-API, and persisted CSV exports. Later phases add supplier ranking exports, policy version workflow,
-requester/buyer UI and audit, contract extraction, and deployment.
+API, and CSV exports. Phases 4 and 5 add dated supplier exports, policy drafts,
+diffs, approvals, effective dates, and a batch-processing screen. Requester chat,
+buyer approvals/overrides, the full audit workspace, contract editing, and
+deployment remain for later phases.
 
 The actual v5 seed is `server/policies/v5.0.json`; the earlier JSON in `docs/` is
 only a design example. Thresholds and windows are data, not engine constants.
@@ -127,7 +129,7 @@ labels; deterministic chronological numbering and membership are tested.
 Thresholds and history/clubbing/consolidation windows live in
 `server/policies/v5.0.json`. Tests demonstrate raising the spot limit, adding a
 plant-only restriction, and adding a sourcing route using JSON changes alone.
-Uploading and approving amendments through the app is phase 5, not yet available.
+Uploading and approving amendments is available in the Policy updates tab.
 
 
 ## Preferred suppliers (phase 4)
@@ -142,3 +144,58 @@ GET /api/preferred-suppliers and /api/preferred-suppliers/export take required
 `as_of_date` and optional `policy_version`, `import_id`, and `item_code`. The UI
 pins both the returned policy and import snapshot in its export link. Weights,
 recency bands and eligibility windows come from the chosen policy JSON.
+
+
+## Policy updates (phase 5)
+
+Open Policy updates. Choose an approved base, a unique version label, and its
+effective date. Describe an amendment in the chat composer or upload a PDF/text
+file. The optional LLM proposes strict JSON edit operations; the server applies
+only supported data edits, validates the full policy, and saves a draft. No route
+is selected by the model. Unknown semantics, invalid facts, and incomplete
+extractions return an error instead of activating a guessed rule.
+
+Review the plain-language Before/After table. Manual JSON editing is available
+without an API key and for correcting extracted drafts. Edited drafts must be
+validated and reviewed again before approval. Approval is tied to the reviewed
+content hash; a changed draft or a newly approved base forces a fresh review.
+Approved versions cannot be edited. Future-approved versions display as scheduled
+and cannot affect processing before their effective date. Lifecycle labels are
+computed for the selected date; historical approved versions remain replayable.
+
+Set LLM_BASE_URL (including the provider's /v1 prefix), LLM_MODEL and LLM_API_KEY
+in .env to enable an OpenAI-compatible chat-completions provider. By default,
+LLM_RESPONSE_FORMAT=json_schema requests strict structured edit output. For a
+provider supporting only JSON mode, explicitly set json_object; full local schema
+validation still runs. The selected provider receives the base policy and the
+uploaded amendment text, never PR/master data. No live provider was connected
+during development; provider tests use mocked responses.
+
+API endpoints:
+
+- GET /api/policy-capabilities: JSON schema, safe fact sources, and LLM availability.
+- GET /api/policies?as_of_date=YYYY-MM-DD: versions and effective lifecycle labels.
+- GET /api/policies/:version: policy/draft, diff, and review hash where applicable.
+- POST /api/admin/policies/drafts: multipart version, effective_date, optional
+  base_version, text or file, or policy_json for manual mode.
+- PUT /api/admin/policies/:version: JSON policy_json and review_hash to edit a draft.
+- POST /api/admin/policies/:version/approve: JSON review_hash from the latest review.
+
+Admin writes use x-actor and the same Bearer ADMIN_TOKEN as imports (loopback-only
+when no token is configured). Source PDFs/text and approval/audit data persist in
+PostgreSQL. Configure keys on the server, never in browser fields.
+
+## Reprocessing the same batch
+
+The Process batch tab exposes as-of date and approved policy version. Blank date
+uses the latest valid CSV creation date. Identical parsed CSV content identifies
+the same batch, regardless of filename. Reprocessing keeps its batch/current-run
+IDs, atomically replaces decisions and PO proposals, and records the previous
+complete result/policy in the audit log. Concurrent requests serialize per batch.
+Only one current result exists; historical legacy runs remain marked non-current.
+No actual PO is created until the later buyer-approval phase.
+
+Download the v5.0 CSV before reprocessing with an amendment if both submission
+files are needed. Use explicit policy_version=5.0 to reproduce the baseline.
+
+[Phase 4/5 verification and limitations](docs/PHASES_4_5.md).

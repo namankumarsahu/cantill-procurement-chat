@@ -1,21 +1,18 @@
 import express from 'express';
 import multer from 'multer';
-import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import type pg from 'pg';
 import { inspectKit, readKitZip } from './import-kit.js';
 import { saveImport } from './repository.js';
+import { actor,adminOnly } from './auth.js';
+import {registerPolicyAPI} from './policy-api.js';
+import type {DraftParser} from './llm.js';
 import { registerSupplierAPI } from './supplier-api.js';
 import { registerBatchAPI } from './batch-api.js';
 
 export const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 10 } });
-export function actor(req: express.Request): string {
-  const value = req.get('x-actor')?.trim();
-  if (!value || value.length > 100) throw new Error('Supply x-actor (1–100 characters)');
-  return value;
-}
-export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN) {
+export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, options: {policyParser?:DraftParser} = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
@@ -25,15 +22,7 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN) {
     const policies = await pool.query('SELECT version,effective_date::text,status FROM policy_versions ORDER BY effective_date DESC');
     res.json({ latest_import: latest.rows[0] ?? null, policies: policies.rows });
   });
-  app.post('/api/admin/import-master', (req, res, next) => {
-    const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
-    if (adminToken) {
-      const supplied = Buffer.from(req.get('authorization')?.replace(/^Bearer /, '') ?? '');
-      const expected = Buffer.from(adminToken);
-      if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) { res.status(401).json({ error: 'Valid admin token required' }); return; }
-    } else if (!loopback) { res.status(403).json({ error: 'Configure ADMIN_TOKEN for remote imports' }); return; }
-    next();
-  }, upload.single('file'), async (req, res) => {
+  app.post('/api/admin/import-master', adminOnly(adminToken), upload.single('file'), async (req, res) => {
     const actingUser = actor(req);
     if (!req.file) throw new Error('Upload the kit ZIP as multipart field file');
     const kit = await inspectKit(readKitZip(req.file.buffer), req.body.snapshot_date || undefined);
@@ -45,6 +34,7 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN) {
   });
   registerBatchAPI(app,pool,upload);
   registerSupplierAPI(app,pool);
+  registerPolicyAPI(app,pool,upload,adminToken,options.policyParser);
   app.use(express.static(fileURLToPath(new URL('../../web/dist', import.meta.url))));
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (error instanceof multer.MulterError) { res.status(413).json({ error: error.message }); return; }
