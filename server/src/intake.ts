@@ -25,7 +25,7 @@ function plantCode(value:string,data:MasterData):string|null{
 export function deterministicFields(message:string,state:IntakeState,data:MasterData,today:string):Partial<IntakeFields>{
  const f:Partial<IntakeFields>={},text=message.trim();
  const correction=text.match(/^(?:item|description|instead|actually|i mean)\s*[:=]?\s*(.+)$/i);if(correction)f.description=correction[1];
- const quantity=text.match(/\b(?:qty|quantity)\s*[:=]?\s*(\d+(?:\.\d+)?)/i)??text.match(/^(?:i\s+)?(?:need|want|order|get)\s+(\d+(?:\.\d+)?)\b/i);
+ const quantity=text.match(/\b(?:qty|quantity)\s*[:=]?\s*(\d+(?:\.\d+)?)/i)??text.match(/^(?:i\s+)?(?:need|want|order|get)\s+(\d+(?:\.\d+)?)\b/i)??text.match(/\b(\d+(?:\.\d+)?)\s*(?:pcs?|pieces?|nos|pairs?|sets?|kg|ltr|mtr|units?)\b/i);
  if(quantity)f.quantity=quantity[1];
  const numeric=text.match(/^\d+(?:\.\d+)?$/)?.[0];
  if(numeric&&!positive(state.fields.quantity))f.quantity=numeric;
@@ -38,30 +38,32 @@ export function deterministicFields(message:string,state:IntakeState,data:Master
  const price=text.match(/\b(?:price|estimate|rate|each)\s*[:=]?\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:\.\d+)?)/i);if(price)f.estimated_unit_price=price[1];
  const uom=text.match(/\buom\s*[:=]?\s*([a-z]+)/i)?.[1];if(uom)f.uom=uom.toUpperCase();
  else if(state.force_new&&/^(NOS|PAIR|SET|KG|LTR|MTR|JOB|MON|QTR|REAM|ROL|BRL|BKT|CYL)$/i.test(text))f.uom=text.toUpperCase();
- if(!state.fields.description&&!f.description){let desc=text.replace(/^(?:i\s+)?(?:need|want|order|get)\s+(?:\d+(?:\.\d+)?\s*)?/i,'').split(/\s+(?:for|at|by|need[- ]?by|qty|quantity|plant|urgency)\b/i)[0].trim();if(desc&&!numeric&&!/^(normal|emergency)$/i.test(desc))f.description=desc;}
+ if(!state.fields.description&&!f.description){let desc=text.replace(/^(?:i\s+)?(?:need|want|order|get)\s+(?:\d+(?:\.\d+)?\s*)?/i,'').split(/\s+(?:for|at|by|need[- ]?by|qty|quantity|plant|urgency)\b/i)[0].replace(/[,;]?\s*\b\d+(?:\.\d+)?\s*(?:pcs?|pieces?|nos|pairs?|sets?|kg|ltr|mtr|units?)\b/ig,'').trim();if(desc&&!numeric&&!/^(normal|emergency)$/i.test(desc))f.description=desc;}
  return f;
 }
 export function assessIntake(state:IntakeState,data:MasterData,policy:Policy,today:string){
  const f=state.fields;
  const selected=data.items.find(i=>i.item_code===state.selected_item);
  let item:Item|undefined=selected,candidates:{item_code:string;description:string;score?:number}[]=[];
- if(!f.description?.trim())return{question:'What item do you need? Please include a model, size or specification.',ready:false,item:undefined,is_new:false,candidates};
+ const generic=new Set(['a','an','the','some','something','anything','item','items','part','parts','spare','spares','thing','things','machine','equipment','for','my','our']);
+ if(!f.description?.trim()||(!selected&&normalizeDescription(f.description,policy).every(t=>generic.has(t))))return{question:'What item do you need? Please include its name, model, size or specification.',ready:false,item:undefined,is_new:false,candidates};
  if(!item&&!state.force_new){const match=matchDescription(f.description,data.items,policy);item=match.item;candidates=match.candidates.slice(0,5);
   if(!item&&!candidates.length){const tokens=normalizeDescription(f.description,policy).map(t=>t.replace(/s$/,''));candidates=data.items.filter(i=>normalizeDescription(i.description,policy).map(t=>t.replace(/s$/,'')).some(t=>t.length>2&&!['the','for','new','per','item','sample'].includes(t)&&tokens.includes(t))).slice(0,5).map(i=>({item_code:i.item_code,description:i.description}));}
   if(!item&&candidates.length)return{question:`Which item do you mean? Give a size/model or choose an existing item code: ${candidates.map(c=>`${c.item_code}: ${c.description}`).join('; ')}. Say NEW if this is genuinely a new item.`,ready:false,item:undefined,is_new:false,candidates};
  }
  const is_new=!item;
+ if(is_new&&!positive(f.estimated_unit_price))return{question:'This is a NEW item. What is your estimated unit price in INR? For example, price 1200.',ready:false,item,is_new,candidates};
  if(!positive(f.quantity))return{question:'What quantity do you need? Enter a positive number (for example, quantity 200).',ready:false,item,is_new,candidates};
  if(!f.plant||!data.plants.some(p=>p.plant===f.plant))return{question:`Which plant needs it? Choose ${data.plants.map(p=>`${p.plant} (${p.name})`).join(' or ')}.`,ready:false,item,is_new,candidates};
  if(!f.need_by_date||!validDate(f.need_by_date)||f.need_by_date<today)return{question:'What is the need-by date? Use YYYY-MM-DD, tomorrow, or next Friday; it cannot be before today.',ready:false,item,is_new,candidates};
  if(!f.urgency)return{question:'Is the request Normal or Emergency? Please choose explicitly.',ready:false,item,is_new,candidates};
- if(is_new&&!positive(f.estimated_unit_price))return{question:'This is a NEW item. What is your estimated unit price in INR? For example, price 1200.',ready:false,item,is_new,candidates};
  if(is_new&&!f.uom)return{question:'What is the unit of measure for this NEW item? For example, UOM NOS, SET, KG or LTR.',ready:false,item,is_new,candidates};
  return{question:`Please confirm: ${f.quantity} ${item?.uom??f.uom} of ${item?`${item.item_code} - ${item.description}`:`NEW - ${f.description}`}, plant ${f.plant}, needed by ${f.need_by_date}, ${f.urgency}${is_new?`, estimated INR ${f.estimated_unit_price} per unit`:''}. Reply CONFIRM to create the PR, or describe a correction.`,ready:true,item,is_new,candidates};
 }
 export async function intakeTurn(message:string,old:IntakeState,data:MasterData,policy:Policy,today:string,parser?:IntakeParser){
  const state=structuredClone(old);state.stage='collecting';let degraded=false;
- const explicit=data.items.find(i=>message.split(/[\s,;:()]+/).some(t=>t.toLowerCase()===i.item_code.toLowerCase()));
+ const words=message.trim().split(/[\s,;:()]+/);
+ const explicit=data.items.find(i=>words.some((t,index)=>t.toLowerCase()===i.item_code.toLowerCase()&&(/[\d_-]/.test(i.item_code)||words.length===1||['item','code'].includes(words[index-1]?.toLowerCase()))));
  if(explicit){state.selected_item=explicit.item_code;state.force_new=false;state.fields.description=explicit.description;}
  if(/^new(?: item)?(?:\s*:\s*(.+))?$/i.test(message.trim())){state.selected_item=null;state.force_new=true;const description=message.match(/:\s*(.+)$/)?.[1];if(description)state.fields.description=description;}
  const local=deterministicFields(message,state,data,today);let parsed:Partial<IntakeFields>={};

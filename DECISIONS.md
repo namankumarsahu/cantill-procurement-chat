@@ -351,3 +351,11 @@ confirmation replay does not create another import. Both manual and extracted
 contracts use the engine's existing contract selection; no routing thresholds
 or windows are added to the UI or extractor. Historical expired/nonactive
 contracts remain visible and unusable, rather than being deleted.
+
+Chat separates a stated quantity/UOM (for example “50 pcs”) from the description
+before matching, so quantities cannot masquerade as item model numbers. Generic
+requests such as “something for the machine” ask for the item name/specification;
+named unknown items ask for a price estimate first. A word-only catalog code in
+an ordinary sentence requires an explicit item/code label to avoid treating “I”
+as a code; an isolated code remains a valid selection. No matching threshold or
+procurement parameter changed for these acceptance fixes.

@@ -4,6 +4,12 @@ import {emptyIntake,intakeTurn,type IntakeParser}from'../src/intake.js';
 import {withApp}from'./policy-fixture.js';
 const emptyParser:IntakeParser=async()=>({description:null,quantity:null,plant:null,need_by_date:null,urgency:null,estimated_unit_price:null,uom:null});
 const data=()=>{const d=master();d.items.push({...d.items[0],item_code:'B10',description:'Hex bolt M10x40'},{...d.items[0],item_code:'B12',description:'Hex bolt M12x50'});return d;};
+test('acceptance phrases keep quantities out of item models and distinguish vague from NEW',async()=>{
+ const d=data();d.items.push({...d.items[0],item_code:'BEARING',description:'Ball bearing 6205-2RS'});
+ const bearing=await intakeTurn('brg 6205 2rs, 50 pcs',emptyIntake(),d,policy(),'2026-11-16',emptyParser);assert.equal(bearing.item?.item_code,'BEARING');assert.equal(bearing.state.fields.quantity,'50');assert.match(bearing.question,/Which plant/);
+ const vague=await intakeTurn('I need something for the machine',emptyIntake(),d,policy(),'2026-11-16',emptyParser);assert.equal(vague.is_new,false);assert.equal(vague.state.force_new,false);assert.equal(vague.item,undefined);assert.match(vague.question,/What item/);
+ const named=await intakeTurn('need a titanium flange',emptyIntake(),d,policy(),'2026-11-16',emptyParser);assert.equal(named.is_new,true);assert.match(named.question,/estimated unit price/);
+});
 test('vague red bolts asks for a specification instead of selecting an item or becoming NEW',async()=>{
  const r=await intakeTurn('the red bolts',emptyIntake(),data(),policy(),'2026-11-16',emptyParser);assert.equal(r.ready,false);assert.equal(r.item,undefined);assert.equal(r.is_new,false);assert.match(r.question,/Which item/);assert.equal(r.candidates.length,2);
  const hallucinating:IntakeParser=async()=>({...await emptyParser('',emptyIntake(),''),description:'Hex bolt M10x40'});const protectedTurn=await intakeTurn('the red bolts',emptyIntake(),data(),policy(),'2026-11-16',hallucinating);assert.equal(protectedTurn.item,undefined);assert.match(protectedTurn.question,/Which item/);
