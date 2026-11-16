@@ -1,77 +1,81 @@
 # Approach
 
-I am using Codex as a coding assistant. I will review and keep the code small
-enough to explain in an interview. The exact model identifier is not exposed in
-this workspace, so I am not claiming a particular GPT model version.
+Coding assistance: **Codex GPT-6.1 Sol/Terra**. I use the coding assistant for
+implementation, tests, debugging and documentation, and keep the choices small
+enough to explain in Round 2. This coding tooling is separate from the model
+called by the running procurement app.
 
-For phase 1, I used Python's standard CSV, JSON, Decimal, datetime, and ZIP tools
-to inspect all rows, and bundled pypdf layout extraction to read all 15 PDFs.
-Poppler's pdftotext was not installed. Extracted text and the inspection report
-remain in ignored kit_data. No source datasets or signed PDFs are committed.
+## Inside the app
 
-Groq is now connected locally for policy drafting. The implemented integration accepts an
-OpenAI-compatible base URL, model, and key through environment variables. It
-parses policy text into validated edits and a full policy draft. Requester chat
-parsing remains a later phase. The deterministic engine
-will make procurement decisions. With no API key, deterministic intake and
-manual policy JSON editing must remain available.
+Groq supplies an OpenAI-compatible chat-completions endpoint. Local acceptance
+used openai/gpt-oss-120b, with the key stored only in ignored .env. The server takes
+the endpoint/model/key from environment variables; no key reaches the web bundle.
 
-Phase 2 uses Express, React/Vite, node-postgres, Zod for boundary validation,
-csv-parse/stringify for CSV handling, decimal.js for exact arithmetic, fflate
-for in-memory ZIP imports, and pdf-parse for deterministic PDF text extraction.
-Tests use Node's built-in test runner through tsx. Package versions are locked.
-No runtime LLM is needed for imports or decisions.
+The LLM extracts explicitly stated requester fields into a strict nullable JSON
+schema. Item resolution is deterministic against the imported catalog. A vague
+description asks a question; an actual unknown description becomes NEW and needs
+an estimate. The model cannot output an authoritative item code, select a
+supplier, choose a route, approve an order, or create a catalog entry.
 
-I checked the official Express installation guidance and node-postgres
-transaction documentation when setting up the backend. All transaction queries
-use the same checked-out connection. I tested imports against the supplied kit
-and database behavior against an isolated local PostgreSQL 18 cluster.
+For amendments, the LLM returns schema-checked JSON edit operations and one-line
+rule restatements. Temperature is zero, and the prompt includes the stored v5.0
+reference, current approved base, and three example amendments. Feedback generates
+a complete replacement edit set. Zod validates the result; the UI's plain-language
+diff comes from the validated policy, not from the model's claim. A deterministic
+impact run and explicit approval are required before a version can become effective.
+Hosted output is still best-effort, so temperature zero is not a correctness proof.
 
-No third-party accounts, external messaging, public repo, or hosting deployment
-have been created.
+For contracts, try deterministic PDF text/field parsing first. An irregular readable
+PDF can use LLM fallback. Unreadable/scanned PDFs need manual transcription, with
+no invented extraction. Every field and opening balance needs buyer confirmation.
 
+The LLM never evaluates PR routes or executes source text as code/SQL. Limits,
+windows, fact/route registries, rule order and ranking weights are policy data.
+Unsupported conditions need validation/manual resolution, not model improvisation.
+No-key or provider-failure mode retains local intake parsing and manual policy/
+contract editing. Decisions, ranking and exports never need an LLM call.
 
-Phase 3 uses a pure TypeScript engine: it takes policy, master data and PR lines
-and returns proposals without HTTP, database, filesystem or wall-clock access.
-The server parses CSV, selects the effective approved policy, loads an immutable
-import snapshot, then saves the run and audit event in one PostgreSQL transaction.
+## Implementation and verification
 
-I verified the full kit through POST /api/process-batch and its CSV export, in
-addition to synthetic boundary tests and the fourteen worked scenarios. Ranking
-uses the documented weights consistently; category top-up uses the delivery and
-quality components together. No sample PR, item or supplier identifiers occur
-in engine source. Fixture references exist only in tests.
+The engine is a pure TypeScript library: policy + immutable master snapshot + PR
+lines yields deterministic requirements, decisions and PO proposals. Express owns
+transactions, policy selection, import snapshots, actual approvals and audit.
+React uses the same endpoints as batch clients. All persistent data, including
+PDF bytes and raw PR lines, lives in PostgreSQL. Hosted runtime never reads kit_data.
 
+Zod validates trust boundaries, decimal.js handles money, node-postgres handles
+transactions, csv-parse/stringify preserves CSV structure and escapes formulas,
+fflate imports ZIPs, and pdf-parse extracts document text. The Node test runner
+through tsx checks engine behavior and HTTP/PostgreSQL workflows. Production Docker
+compiles TypeScript and serves web/API from one unprivileged Node process.
 
-Phases 4/5 reuse the ranking engine for dated lists and exports. The policy parser
-uses fetch against an OpenAI-compatible chat-completions endpoint with a strict
-edit-envelope schema; all edited policies are validated locally. I consulted the
-official structured-output documentation:
-[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+I read all kit PDFs/data before implementing the policy. Initial inspection used
+Python CSV/Decimal/ZIP helpers and pypdf because pdftotext was unavailable. Runtime
+imports use the TypeScript implementation. Source data and extracted text stay
+out of Git and container images.
 
-I tested four fake amendments through real HTTP/PostgreSQL draft/approval and
-reprocessing endpoints using a fake parser. The actual provider adapter is tested
-with mocked HTTP responses (strict output, bad JSON, provider failure, no key).
-At the phase-five commit, no live LLM call had been made; the later live check
-is documented below. I smoke-checked the supplier
-score breakdown and manual JSON fallback in the local browser.
+Tests cover all 14 supplied worked examples, clubbing/ceilings/date/rounding
+boundaries, supplier ranking, data anomalies, API/exports, chat follow-ups and
+degraded mode, approvals/overrides/audit, contract review, and fake amendments
+changing limits, plant/category scope and a newly registered quantity fact.
+The live local acceptance pass reset the demo, processed v5.0, uploaded a Groq
+amendment, reviewed impact, approved, reprocessed, and compared both saved CSVs.
+It found/fixed chat shorthand and vagueness issues and verified no unexpected
+amendment business changes. See docs/ACCEPTANCE_CHECK.md and docs/PHASE_8.md.
 
+Docker was checked using an isolated local database volume. The local network's
+TLS proxy required existing public CA certificates as a temporary BuildKit secret;
+TLS verification stayed enabled, and the CA bundle was not copied into the image.
+Deployment instructions were checked against official Render and Neon docs.
+Cloud accounts/resources are created by the user by hand; deployed acceptance
+checks remain pending the live URL, with no claim of public deployment yet.
 
-A live check on 16 November used Groq openai/gpt-oss-120b with the user's key
-stored only in ignored .env. I tested a plain-text upload and a messy chat-style
-amendment. The first required manual semantic correction; the second produced
-a correct draft after tightening the scope/fallback instructions. Both were
-reviewed, approved and reprocessed. See docs/LIVE_LLM_CHECK.md. Earlier phase-five
-notes describe the state before this live check.
+## Limits I would explain
 
-
-For amendment hardening, I added impact simulation without saving proposals,
-preview-bound approval, temperature-zero example prompting, rule restatements,
-feedback regeneration and a dry-run-first demo reset. Automated tests use isolated
-PostgreSQL schemas. A live Groq regeneration test also ran in a disposable schema:
-the ineffective draft had zero route changes; CHK1 feedback produced the expected
-one-row SPOT_PO-to-RFQ transition, with the other plant unchanged. Saved run data
-was unchanged and the temporary schema was removed. No live reset was executed.
-
-Groq documents determinism as best-effort:
-[API reference](https://console.groq.com/docs/api-reference).
+This is a demo with explicit roles/actor names and one shared admin mutation token,
+not full user authentication. Supplier status/ratings are snapshot data because
+the kit has no historical status timeline. Scans have no OCR. Free hosting can
+sleep, and hosted LLM parsing can fail; manual fallbacks are part of the workflow.
+The safe fact registry cannot express arbitrary new external data sources without
+a provider implementation. Real rollout would also need authenticated identities
+and operational controls beyond this take-home's scope.

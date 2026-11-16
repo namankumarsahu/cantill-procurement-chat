@@ -1,0 +1,9 @@
+# Optional local TLS-proxy build support; not needed on normal public networks.
+services:
+  app:
+    build:
+      secrets:
+        - npm_ca
+secrets:
+  npm_ca:
+    file: ${NPM_CA_FILE:?Set NPM_CA_FILE to your existing trusted PEM CA bundle}

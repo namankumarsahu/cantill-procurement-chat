@@ -1,7 +1,8 @@
 # Decisions
 
-Import, engine, supplier-list and policy-update choices are implemented through
-phase 5. Buyer-approval workflows still describe later-phase behavior.
+These are the implemented choices for imports, chat, the engine, supplier lists,
+policy/contract review, buyer approval and exports. The hosted acceptance pass is
+pending the deployment URL; older phase reports record historical checkpoints.
 
 ## Dates and policy selection
 
@@ -53,11 +54,11 @@ For rejected rows, retain input identity and any known resolved code; leave grou
 PO, supplier, and numeric decision fields empty. Use route NOT_PROCESSED and
 decision SOURCING_REQUEST to respect the required two-value decision column.
 That value is a reporting convention: no sourcing event is created for rejected
-rows. The API exposes processing status separately.
+rows. Their route/reason records rejection; they do not become requirements.
 
 I found two invalid PR rows in this kit: zero quantity and unknown plant. I did
 not find duplicates, missing quantity, invalid dates, UOM mismatches, or unknown
-nonempty codes. These still need future-input tests. Free-text suffix `urgent`
+nonempty codes. Synthetic regression tests cover those absent anomalies. Free-text suffix `urgent`
 does not override Normal in the batch urgency column. Chat asks the requester
 to confirm urgency rather than assuming Emergency from that word alone.
 
@@ -113,7 +114,7 @@ purchase from its source.
 History windows include the day at the lower bound and exclude requirement day:
 `requirement_date - N <= po_date < requirement_date`. Dates in history do not
 have time-of-day, so including same-day entries could leak a later purchase.
-Equal-date latest-PO ties use PO number descending with a stable row-ID fallback.
+Equal-date latest-PO ties use PO number descending; PO numbers are unique per import.
 Contract reference-price ties use most recent start, then contract ID.
 
 Requirement valuation and PO ordering price are separate. For spot/emergency,
@@ -174,9 +175,8 @@ recent started item contract, including expired ones. Sourcing takes preferred
 suppliers first, then unused Active category suppliers ordered
 by the same weighted on-time and quality contributions used in the main score.
 Break equal performance scores by on-time descending, quality descending, then
-ID ascending. This phase-3 refinement uses both performance factors for top-up;
-the initial phase-1 draft sorted by on-time first, which disagreed with examples
-10 and 11. No item- or supplier-specific exceptions are used. If fewer suppliers exist than
+ID ascending. This uses both performance factors for top-up, consistently with
+the worked examples. No item- or supplier-specific exceptions are used. If fewer suppliers exist than
 requested, return all eligible ones with a shortage flag; never fill with blocked
 or unrelated suppliers. NEW items get no suggestions.
 
@@ -191,8 +191,9 @@ duplicate actual orders.
 
 Buyer approval materializes the proposal. Override requires a nonempty comment
 and preserves original and changed values. Override cannot bypass Active-supplier
-checks or invalid quantities/plant. Any change to supplier, route, or quantity
-requires revalidation and reconsolidation before approval. Record actor, role,
+checks or invalid quantities/plant. Supplier/route/rate changes are revalidated
+and reconsolidated before approval. This override form cannot edit quantity or
+plant: correct the CSV and reprocess an unapproved batch instead. Record actor, role,
 timestamp, before/after, and source run. The simple role switch is demo identity,
 not production authentication.
 
@@ -206,12 +207,12 @@ approval. A plain-language diff is derived from validated JSON, not an LLM's
 claim that it made a change. No-key mode supports manual JSON updates.
 
 
-## Phase-3 export and verification notes
+## Export and verification
 
 CSV columns use the exact required order. Formula-like text is prefixed with an
 apostrophe by csv-stringify for spreadsheet safety; the JSON API retains original
 values. Rejected rows create no PO or sourcing record. All outputs are proposals
-until buyer approval is implemented. Processing is repeatable and does not update
+until explicit buyer approval. Processing is repeatable and does not update
 contract consumption in master data.
 
 The fourteen worked scenarios match routes, exact source-data money, suppliers,
@@ -302,7 +303,10 @@ The reset script is explicitly for a demo database. It previews by default and
 requires --confirm-reset for deletion. It deletes non-v5.0 policies and all runs/
 impact previews, restores the hand-authored v5.0 seed, and retains master data, raw
 batches, source evidence and prior audit history. It appends a reset audit event
-and refuses production mode. A real reset was tested only in a disposable schema.
+and refuses production mode unless ALLOW_DEMO_RESET=true explicitly permits a
+disposable demo reset. The authenticated remote reset endpoint additionally
+requires ADMIN_TOKEN and the enable flag for preview and confirmation. A local
+acceptance reset was executed after a dry run, preserving master/audit evidence.
 
 ## Requester and buyer workflow
 
@@ -359,3 +363,27 @@ named unknown items ask for a price estimate first. A word-only catalog code in
 an ordinary sentence requires an explicit item/code label to avoid treating “I”
 as a code; an isolated code remains a valid selection. No matching threshold or
 procurement parameter changed for these acceptance fixes.
+
+## Packaging, exports and hosting
+
+Compose runs PostgreSQL and a single compiled Node service that serves both API
+and React assets. Database state uses a named volume; hosted state, raw batches,
+source PDFs and audit live in Neon rather than ephemeral local disk. Startup
+applies transactional/idempotent migrations and seeds only the policy. Hosted
+master data is supplied through the token-protected import screen.
+
+The filename prefix and run1/run2 label change Content-Disposition only, never
+the decision schema or selected policy. Prefixes allow 1-60 letters, digits,
+underscores or hyphens, beginning with a letter/digit; paths, dots and header
+control characters are rejected. A download serves the run's current results,
+so save the baseline before replacement. Policy stamps/reasons and sequential
+proposal PO IDs can change across versions; compare actual decisions and PO
+membership before calling a blind-test difference a business change.
+
+Production startup requires an admin token. Remote import, policy changes,
+buyer/contract changes and reset are token-protected; reset also needs explicit
+demo enablement and a confirm_reset boolean. Read-only, requester and batch
+processing flows remain public demo functions. A role switch records identity
+claims but does not establish authenticated user identity. Health checks run a
+database query and return no connection secrets. Hosted TLS uses verified server
+certificates; there is no certificate-validation bypass.
