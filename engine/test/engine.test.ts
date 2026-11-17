@@ -1,11 +1,19 @@
 import { test } from 'node:test';
 import { Decimal } from 'decimal.js';
 import assert from 'node:assert/strict';
-import { processBatch, testCondition } from '../src/process.js';
+import { batchAsOf, processBatch, testCondition } from '../src/process.js';
 import { matchDescription } from '../src/matching.js';
 import { rankSuppliers } from '../src/ranking.js';
 import { instant } from '../src/dates.js';
 import { policy, master, line, contract } from './fixtures.js';
+
+test('batch as-of comes from the latest parsable creation date in Kolkata, with explicit override and no clock fallback',()=>{
+ const rows=[line(1,{created_at:'2026-11-19 10:00'}),line(2,{created_at:'2026-11-20 10:00'}),line(3,{created_at:'invalid'})];
+ assert.equal(batchAsOf(rows),'2026-11-20');assert.equal(batchAsOf(rows,'2026-11-25'),'2026-11-25');
+ assert.equal(batchAsOf([line(1,{created_at:'2026-11-20T23:30:00Z'})]),'2026-11-21');
+ assert.throws(()=>batchAsOf([line(1,{created_at:'invalid'})]),/Supply a valid as_of_date/);
+ assert.equal(batchAsOf([line(1,{created_at:'invalid'})],'2026-11-25'),'2026-11-25');
+});
 
 test('clubbing uses inclusive first-line windows, same plant, and emergency propagation', () => {
   const p = policy(), d = master();

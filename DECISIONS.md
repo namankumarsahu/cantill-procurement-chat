@@ -13,7 +13,10 @@ local timezone.
 
 A batch uses one approved policy version. Without `policy_version`, select the
 latest approved version effective on or before `as_of_date`. Default as-of is
-the latest valid PR creation date in the batch, shown explicitly in the UI.
+the latest parsable PR creation date in the batch (Asia/Kolkata), shown explicitly
+in the result. It is not the day the batch is processed. All parsable timestamps
+contribute, including rows later rejected for other field errors; malformed
+timestamps are ignored for this default. If none parse, an explicit date is required.
 An explicit as-of date is a cutoff: later rows remain in the export as
 NOT_PROCESSED. This allows the complete supplied November batch to run even
 when the computer date is earlier than its final requests.
@@ -28,6 +31,23 @@ Future-approved versions are scheduled rather than replacing today's effective
 version immediately. Retain approval and supersession history so old runs remain
 reproducible. Before any approved version exists for a date, return a clear error
 instead of silently choosing a future policy.
+
+Approval alone does not apply a future-effective amendment to an older batch.
+With a blank date, reprocessing the same CSV derives the same default date, so
+Automatic still picks the older eligible version. Pinning an amendment also
+rejects it when its effective date is later than as-of; it never bypasses dates.
+For example, the sample defaults to 20 November 2026 even when run on 17 November.
+An amendment effective 25 November requires an explicit as-of of 25 November or
+later. If eligible policies share an effective date, latest approval wins, then
+version descending breaks a remaining tie.
+
+Blind-test run 1 is the new batch explicitly pinned to v5.0; run 2 is the same
+CSV explicitly pinned to the approved amendment. Use one comparison date at least
+the batch's latest creation date and the amendment's effective date for both.
+If that effective date is learned after run 1, rerun/download the v5.0 baseline
+on the later comparison date before run 2. Requirement-date history/contract
+checks still use each requirement's first PR creation date. The UI already has
+explicit date/version selectors; run1/run2 export labels only change filenames.
 
 ## Input validation and rows I cannot process
 

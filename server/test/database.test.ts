@@ -70,12 +70,19 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
       assert.equal((await fetch(`${url}/api/runs/${run.run_id}`)).status,200);
       assert.equal((await pool.query('SELECT count(*)::int n FROM processing_runs')).rows[0].n,1);
       assert.equal((await pool.query('SELECT count(*)::int n FROM pr_lines')).rows[0].n,2);
-      const replay=new FormData(); replay.set('file',new Blob([csv]),'replay.csv'); replay.set('as_of_date','2026-11-02');
+      const replay=new FormData(); replay.set('file',new Blob([csv]),'replay.csv');
       const replayResponse=await fetch(`${url}/api/process-batch`,{method:'POST',body:replay});
       const replayRun=await replayResponse.json(); assert.equal(replayResponse.status,200,JSON.stringify(replayRun));
       assert.equal(replayRun.policy_version,'5.0'); assert.deepEqual(replayRun.rows,run.rows);assert.equal(replayRun.run_id,run.run_id);assert.equal(replayRun.batch_id,run.batch_id);assert.equal(replayRun.replaced,true);
+      assert.equal(replayRun.as_of_date,'2026-11-02');
       const future=new FormData();future.set('file',new Blob([csv]),'future.csv');future.set('policy_version','future-approved');future.set('as_of_date','2026-11-02');
       assert.equal((await fetch(`${url}/api/process-batch`,{method:'POST',body:future})).status,400);
+      const advanced=new FormData();advanced.set('file',new Blob([csv]),'same.csv');advanced.set('as_of_date','2027-01-01');
+      const automaticResponse=await fetch(`${url}/api/process-batch`,{method:'POST',body:advanced});const automatic=await automaticResponse.json();
+      assert.equal(automaticResponse.status,200,JSON.stringify(automatic));assert.equal(automatic.policy_version,'future-approved');assert.equal(automatic.run_id,run.run_id);
+      advanced.set('policy_version','5.0');
+      const baselineResponse=await fetch(`${url}/api/process-batch`,{method:'POST',body:advanced});const baseline=await baselineResponse.json();
+      assert.equal(baselineResponse.status,200,JSON.stringify(baseline));assert.equal(baseline.policy_version,'5.0');assert.equal(baseline.as_of_date,automatic.as_of_date);assert.equal(baseline.run_id,run.run_id);
 
       const bad=new FormData(); bad.set('file',new Blob(['wrong\nvalue']),'bad.csv');
       assert.equal((await fetch(`${url}/api/process-batch`,{method:'POST',body:bad})).status,400);

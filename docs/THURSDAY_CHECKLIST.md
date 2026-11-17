@@ -1,9 +1,22 @@
 # Thursday checklist
 
 Use the hosted HTTPS URL. Warm it up first and open `/api/health`; expect
-`{"status":"ok"}`. For the supplied November sample, use 2026-11-21 consistently.
-For a new blind batch, use its latest creation date or a later chosen comparison
-date; the amendment must be effective on or before that date for run 2.
+`{"status":"ok"}`. The supplied sample defaults to **2026-11-20**, its latest
+parsable PR creation date in Asia/Kolkata, even when you run it on 17 November.
+Blank As of date uses batch data, never today's date. If all timestamps are
+invalid, supply the date explicitly.
+
+**Automatic for as-of date** selects the latest approved policy whose effective
+date is on/before that comparison date. Approval alone does not make a later
+amendment apply to older batch dates. Selecting its version explicitly also
+requires a sufficiently late as-of date; otherwise processing rejects it.
+
+For the blind test, choose a common comparison date at least the batch's latest
+creation date and the amendment's effective date. Pin **v5.0 for run 1**, then
+pin **the approved amendment for run 2**, using the same CSV. If the amendment's
+date is learned later, redo/download run 1 under v5.0 on the later comparison
+date first. For example, a 25 November amendment needs 25 November or later for
+both runs; blank date would remain 20 November and not apply that amendment.
 
 ## Before the clock starts
 
@@ -21,8 +34,10 @@ date; the amendment must be effective on or before that date for run 2.
 ## Run 1: baseline
 
 1. **Upload batch → PR CSV → choose sample_pr_batch.csv** (or the blind batch).
-2. Set **As of date**, choose **Policy version → 5.0** and **Export label → run1 —
+2. Set **As of date** to the common comparison date, choose **Policy version → 5.0** and **Export label → run1 —
    baseline**. Click **Process batch**.
+   This processes the new batch under v5.0 even if Automatic would select another
+   approved policy. The export label names the file; it does not choose v5.0.
 3. Check the row count, policy/version and route counts. For the supplied sample:
    186 rows; 33 CONTRACT_PO, 72 SPOT_PO, 6 EMERGENCY_PO, 53 RFQ, 8 RFP, 10 Capex,
    2 NEW, 2 NOT_PROCESSED. A blind batch can have different counts.
@@ -54,6 +69,8 @@ date; the amendment must be effective on or before that date for run 2.
 2. Choose **Policy version → your approved amendment** and **Export label → run2 —
    amendment**. Click **Process batch**; status should say **Replaced existing
    results**. Do not approve buyer orders between the two blind runs.
+   Check the result's displayed version is the amendment and its date matches the
+   saved v5.0 baseline. Do not rely on Automatic or the run2 filename to choose it.
 3. Click **Download yourname__run2.csv** once. Compare by PR/line. All rows must
    remain; policy/version and reasons change across runs, and sequential proposal
    PO IDs can renumber. Compare actual route, supplier, rate, suggestions, value
