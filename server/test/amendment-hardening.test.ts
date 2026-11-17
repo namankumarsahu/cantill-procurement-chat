@@ -67,7 +67,7 @@ test('no-batch approval requires explicit acknowledgement; reset previews by def
   const saved=process.env.NODE_ENV;process.env.NODE_ENV='production';try{await assert.rejects(resetDemo(pool,true),/disabled in production/);}finally{if(saved===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=saved;}
  });
 });
-test('restatements cover new rules, reject duplicates/multiline text, and all three prompt examples validate',()=>{
+test('restatements cover new rules, reject duplicates/multiline text, and prompt examples validate',()=>{
  for(const example of amendmentExamples){const base=policy(),candidate=applyPolicyEdits(base,example.json);validateRestatements(base,candidate,example.json.rule_restatements);}
  const base=policy(),candidate=applyPolicyEdits(base,{operations:[add('/parameters/local_limit',100000),add('/rules/4',restriction)],unresolved:[]});
  assert.throws(()=>validateRestatements(base,candidate,[]),/Missing/);

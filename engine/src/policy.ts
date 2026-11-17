@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {validDate} from './dates.js';
 
 export type Scalar = string | number | boolean;
 export type Operand = Scalar | Scalar[] | { parameter: string };
@@ -21,9 +22,12 @@ export const sourceTypes = {
   'requirement.requirement_date': 'string', 'requirement.department': 'string',
   'requirement.requester': 'string', 'item.uom': 'string', 'item.description': 'string',
   'item.standard_price': 'number',
+  'requirement.earliest_need_by_date': 'date', 'requirement.days_until_need_by': 'number',
+  'preferred_supplier.exists': 'boolean', 'preferred_supplier.on_time_pct': 'number', 'preferred_supplier.quality_rating': 'number',
+  'contract_supplier.exists': 'boolean', 'contract_supplier.on_time_pct': 'number', 'contract_supplier.quality_rating': 'number',
 } as const;
 const fact = z.union([
-  z.strictObject({ type: z.enum(['string', 'number', 'boolean']), source: z.enum(Object.keys(sourceTypes) as [keyof typeof sourceTypes, ...Array<keyof typeof sourceTypes>]) }),
+  z.strictObject({ type: z.enum(['string', 'number', 'boolean','date']), source: z.enum(Object.keys(sourceTypes) as [keyof typeof sourceTypes, ...Array<keyof typeof sourceTypes>]) }),
   z.strictObject({ type: z.literal('boolean'), provider: z.literal('item_purchase_exists'), args: z.strictObject({ supplier_status: z.literal('Active'), history_days: amount }) }),
 ]);
 const route = z.strictObject({
@@ -78,10 +82,11 @@ export function validatePolicy(input: unknown): Policy {
     if (!Object.hasOwn(p.fact_registry,c.fact)) fail(`unknown fact ${c.fact}`);
     const f = p.fact_registry[c.fact];
     const v = resolveOperand(p, c.value);
-    if (['gt', 'gte', 'lt', 'lte'].includes(c.operator) && (f.type !== 'number' || typeof v !== 'number')) fail('numeric comparison needs numbers');
-    if (c.operator === 'between' && (f.type !== 'number' || !Array.isArray(v) || v.length !== 2 || v.some(x => typeof x !== 'number') || v[0] > v[1])) fail('between needs an ordered numeric pair');
-    if (c.operator === 'in' && (!Array.isArray(v) || v.some(x => typeof x !== f.type))) fail('in needs a matching typed array');
-    if (['eq', 'ne'].includes(c.operator) && typeof v !== f.type) fail('equality type mismatch');
+    const matches=(x:Scalar)=>f.type==='date'?typeof x==='string'&&validDate(x):typeof x===f.type;
+    if (['gt', 'gte', 'lt', 'lte'].includes(c.operator) && (!['number','date'].includes(f.type) || Array.isArray(v) || !matches(v))) fail('comparison needs matching numbers or ISO dates');
+    if (c.operator === 'between' && (!['number','date'].includes(f.type) || !Array.isArray(v) || v.length !== 2 || v.some(x => !matches(x)) || v[0] > v[1])) fail('between needs an ordered numeric or ISO date pair');
+    if (c.operator === 'in' && (!Array.isArray(v) || v.some(x => !matches(x)))) fail('in needs a matching typed array');
+    if (['eq', 'ne'].includes(c.operator) && (Array.isArray(v)||!matches(v))) fail('equality type mismatch');
   }
   for (const r of p.rules) { if (!Object.hasOwn(p.route_registry, r.outcome.route)) fail(`unknown route ${r.outcome.route}`); check(r.when); }
   const last = [...p.rules].sort((a, b) => a.order - b.order).at(-1)!;

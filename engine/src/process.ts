@@ -23,21 +23,23 @@ const positiveDecimal = (v: string) => /^\d+(\.\d+)?$/.test(v) && new Decimal(v)
 function compareLines(a: PRLine, b: PRLine): number {
   return instant(a.created_at)-instant(b.created_at) || compareText(a.pr_no,b.pr_no) || Number(a.pr_line)-Number(b.pr_line) || a.source_row-b.source_row;
 }
-export function testCondition(c: Condition, facts: Record<string, Scalar | Decimal>, p: Policy): boolean {
-  if ('all' in c) return c.all.every(child => testCondition(child, facts, p));
-  if ('any' in c) return c.any.some(child => testCondition(child, facts, p));
-  if ('not' in c) return !testCondition(c.not, facts, p);
+export function testCondition(c: Condition, facts: Record<string, Scalar | Decimal | null>, p: Policy): boolean | undefined {
+  if ('all' in c) {const values=c.all.map(child=>testCondition(child,facts,p));return values.includes(false)?false:values.includes(undefined)?undefined:true;}
+  if ('any' in c) {const values=c.any.map(child=>testCondition(child,facts,p));return values.includes(true)?true:values.includes(undefined)?undefined:false;}
+  if ('not' in c) {const value=testCondition(c.not,facts,p);return value===undefined?undefined:!value;}
   const left = facts[c.fact], right = resolveOperand(p,c.value);
+  if(left===null||left===undefined)return undefined;
   const equal = (v: Scalar) => left instanceof Decimal ? left.eq(String(v)) : left === v;
+  const dateComparison=typeof left==='string'&&p.fact_registry[c.fact]?.type==='date';
   switch (c.operator) {
     case 'eq': return equal(right as Scalar);
     case 'ne': return !equal(right as Scalar);
     case 'in': return (right as Scalar[]).some(equal);
-    case 'gt': return new Decimal(String(left)).gt(right as number);
-    case 'gte': return new Decimal(String(left)).gte(right as number);
-    case 'lt': return new Decimal(String(left)).lt(right as number);
-    case 'lte': return new Decimal(String(left)).lte(right as number);
-    case 'between': { const [min,max] = right as number[]; return new Decimal(String(left)).gte(min) && new Decimal(String(left)).lte(max); }
+    case 'gt': return dateComparison ? left>String(right) : new Decimal(String(left)).gt(right as number);
+    case 'gte': return dateComparison ? left>=String(right) : new Decimal(String(left)).gte(right as number);
+    case 'lt': return dateComparison ? left<String(right) : new Decimal(String(left)).lt(right as number);
+    case 'lte': return dateComparison ? left<=String(right) : new Decimal(String(left)).lte(right as number);
+    case 'between': { const [min,max] = right as (string|number)[]; return dateComparison ? left>=String(min)&&left<=String(max) : new Decimal(String(left)).gte(min) && new Decimal(String(left)).lte(max); }
   }
 }
 function selectContract(group: Resolved[], data: MasterData, consumed: Map<string, Decimal>) {
@@ -106,6 +108,9 @@ export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLin
     const first = group[0], item = first.item, date = first.date;
     const quantity = group.reduce((n,r) => n.plus(r.line.quantity),new Decimal(0)), emergency = group.some(r => r.line.urgency === 'Emergency');
     const contract = item ? selectContract(group,data,consumed) : undefined;
+    const rankings = item ? rankSuppliers(item,date,data,policy) : [];
+    const preferred=data.suppliers.find(s=>s.supplier_id===rankings[0]?.supplier_id),contractSupplier=data.suppliers.find(s=>s.supplier_id===contract?.usable?.contract.supplier_id);
+    const earliestNeedBy=group.map(r=>r.line.need_by_date).sort(compareText)[0];
     const previous = item ? latestPO(data.po_history.filter(po => po.item_code === item.item_code && inHistory(po.po_date,date,parameter(policy,'valuation_history_days')))) : undefined;
     const valuationPrice = new Decimal(contract?.valuation?.rate ?? previous?.unit_price ?? item?.standard_price ?? first.line.estimated_unit_price);
     const value = quantity.times(valuationPrice).toDecimalPlaces(2,Decimal.ROUND_HALF_UP);
@@ -119,6 +124,9 @@ export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLin
       'requirement.requester': first.line.requester, 'item.uom': item?.uom ?? first.line.uom,
       'item.description': item?.description ?? first.line.description,
       'item.standard_price': new Decimal(item?.standard_price ?? 0),
+      'requirement.earliest_need_by_date': earliestNeedBy, 'requirement.days_until_need_by': daysBetween(earliestNeedBy,date),
+      'preferred_supplier.exists': !!preferred, 'preferred_supplier.on_time_pct': preferred?.on_time_pct??null, 'preferred_supplier.quality_rating': preferred?.quality_rating??null,
+      'contract_supplier.exists': !!contractSupplier, 'contract_supplier.on_time_pct': contractSupplier?.on_time_pct??null, 'contract_supplier.quality_rating': contractSupplier?.quality_rating??null,
     };
     const eligibility = new Set<string>();
     const facts = Object.fromEntries(Object.entries(policy.fact_registry).map(([name,f]) => {
@@ -130,7 +138,6 @@ export function processBatch(inputPolicy: Policy, data: MasterData, lines: PRLin
     const rule = [...policy.rules].sort((a,b) => a.order-b.order).find(r => testCondition(r.when,facts,policy));
     if (!rule) throw new Error('No matching policy rule');
     const outcome = policy.route_registry[rule.outcome.route];
-    const rankings = item ? rankSuppliers(item,date,data,policy) : [];
     let supplier_id = '', unit_price = '', contract_id: string | null = null, reference = valuationSource;
     if (outcome.supplier_strategy === 'selected_contract') {
       if (!contract?.usable) throw new Error(`Rule ${rule.id} requires a usable contract`);

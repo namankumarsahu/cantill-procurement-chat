@@ -1,5 +1,17 @@
 # Decisions
 
+## Additional amendment facts
+
+Need-by facts use the earliest need-by date in a clubbed group; days-until is
+the calendar-day difference from its first PR creation date. ISO date facts
+support equality, ordering and inclusive between. Supplier facts distinguish the
+top-ranked eligible Active preferred supplier from the usable contract supplier;
+they are not necessarily the same. Their on-time percentage is 0–100 and quality
+rating is 0–5. Each has an exists flag. If a candidate does not exist, its numeric
+facts are unavailable: comparisons and their negations do not match. Unknown is
+not zero. Ambiguous amendment wording requires clarification. These sources add
+capability; v5.0 rules and ranking weights are unchanged.
+
 These are the implemented choices for imports, chat, the engine, supplier lists,
 policy/contract review, buyer approval and exports. The hosted acceptance pass is
 pending the deployment URL; older phase reports record historical checkpoints.

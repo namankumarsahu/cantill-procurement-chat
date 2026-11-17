@@ -16,7 +16,8 @@ export function applyPolicyEdits(base:Policy,input:unknown):Policy{
   let parent:unknown=result;
   for(const key of keys.slice(0,-1)){if(!parent||typeof parent!=='object'||!Object.hasOwn(parent,key))throw new Error(`Unknown edit path ${edit.path}`);parent=(parent as Record<string,unknown>)[key];}
   if(!parent||typeof parent!=='object')throw new Error('Edit parent must be an object/array');
-  const key=keys.at(-1)!,value=edit.op==='remove'?undefined:JSON.parse(edit.value_json??'null');
+  const key=keys.at(-1)!;let value:unknown;
+  try{value=edit.op==='remove'?undefined:JSON.parse(edit.value_json??'null');}catch{throw new Error(`Invalid JSON for policy edit ${edit.path}; use feedback or the manual editor`);}
   if(Array.isArray(parent)){
    const i=key==='-'?parent.length:Number(key);
    if(!/^(0|[1-9]\d*|-)$/.test(key)||!Number.isInteger(i)||i>parent.length||(edit.op!=='add'&&i>=parent.length))throw new Error('Invalid array edit index');
