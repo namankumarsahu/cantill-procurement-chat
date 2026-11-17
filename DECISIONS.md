@@ -51,10 +51,12 @@ a clearly unmatched description can become NEW. Unknown is not permission to
 invent an item master entry.
 
 For rejected rows, retain input identity and any known resolved code; leave group,
-PO, supplier, and numeric decision fields empty. Use route NOT_PROCESSED and
-decision SOURCING_REQUEST to respect the required two-value decision column.
-That value is a reporting convention: no sourcing event is created for rejected
-rows. Their route/reason records rejection; they do not become requirements.
+PO, supplier, and numeric decision fields empty. CSV rows with route NOT_PROCESSED
+have empty decision, supplier_id, unit_price, po_id and suggested_supplier_ids,
+while retaining any known resolved item code, policy version and rejection reason.
+The CSV formatter also clears these fields on previously saved runs; internal JSON
+may retain the legacy SOURCING_REQUEST reporting value, but rejected rows never
+become requirements or create sourcing events.
 
 I found two invalid PR rows in this kit: zero quantity and unknown plant. I did
 not find duplicates, missing quantity, invalid dates, UOM mismatches, or unknown

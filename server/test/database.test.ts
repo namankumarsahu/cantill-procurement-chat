@@ -65,7 +65,8 @@ test('PostgreSQL migration, atomic/idempotent import, round trip, and admin prot
       const {group_value_inr: csvValue,...csvFields}=roundTrip[0];
       const {group_value_inr: apiValue,...apiFields}=run.rows[0];
       assert.deepEqual(csvFields,apiFields);
-      assert.deepEqual(roundTrip[1],run.rows[1]);
+      assert.deepEqual(roundTrip[1],{...run.rows[1],decision:'',supplier_id:'',unit_price:'',po_id:'',suggested_supplier_ids:''});
+      assert.equal(roundTrip[1].resolved_item_code,'I');assert.equal(roundTrip[1].policy_version,'5.0');assert.ok(roundTrip[1].reason);
       assert.equal((await fetch(`${url}/api/runs/${run.run_id}`)).status,200);
       assert.equal((await pool.query('SELECT count(*)::int n FROM processing_runs')).rows[0].n,1);
       assert.equal((await pool.query('SELECT count(*)::int n FROM pr_lines')).rows[0].n,2);
