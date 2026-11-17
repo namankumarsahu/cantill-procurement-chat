@@ -8,14 +8,15 @@ import {suggestSuppliers} from '../../engine/src/ranking.js';
 import {loadMasterData} from './repository.js';
 import {stableJSON} from './policy-hash.js';
 import {sha256} from './import-kit.js';
-export async function buyerView(client:pg.Pool|pg.PoolClient,run:{id:string;result:BatchResult;policy_snapshot:Policy}){
+export async function buyerView(client:pg.Pool|pg.PoolClient,run:{id:string;result:BatchResult;policy_snapshot:Policy},override?:Requirement){
  const decisions=(await client.query('SELECT * FROM buyer_decisions WHERE run_id=$1',[run.id])).rows;
  const documents=(await client.query('SELECT * FROM procurement_documents WHERE run_id=$1 ORDER BY created_at,document_no',[run.id])).rows;
- if(!decisions.length)return{...run.result,decisions,documents};
+ if(!decisions.length&&!override)return{...run.result,decisions,documents};
  const effective=structuredClone(run.result),byGroup=new Map(decisions.map(a=>[a.group_id,a]));
- effective.requirements=effective.requirements.map(req=>structuredClone(byGroup.get(req.group_id)?.effective??req));
+ effective.requirements=effective.requirements.map(req=>structuredClone(override?.group_id===req.group_id?override:byGroup.get(req.group_id)?.effective??req));
  const pending=effective.requirements.filter(r=>!byGroup.get(r.group_id)?.document_id);effective.purchase_orders=consolidatePOs(pending,run.policy_snapshot);
  for(const req of effective.requirements){const doc=documents.find(d=>d.id===byGroup.get(req.group_id)?.document_id);if(doc)req.po_id=req.decision==='PO'?doc.document_no:'';}
+ for(const req of pending)if(req.decision==='PO'&&!effective.purchase_orders.some(po=>po.po_id===req.po_id&&po.group_ids.includes(req.group_id)))throw new Error('PO decision must belong to a consolidated PO proposal');
  const requirements=new Map(effective.requirements.map(r=>[r.group_id,r]));
  effective.rows=effective.rows.map(row=>{const r=requirements.get(row.group_id);return r?{...row,po_id:r.po_id,decision:r.decision,route:r.route,supplier_id:r.supplier_id,unit_price:r.unit_price,group_value_inr:r.group_value_inr,suggested_supplier_ids:r.suggested_supplier_ids.join(';'),reason:r.reason}:row;});
  return{...effective,decisions,documents};
@@ -42,6 +43,9 @@ export async function overrideRequirement(client:pg.PoolClient,runId:string,grou
   else{const item=data.items.find(i=>i.item_code===old.resolved_item_code);const count=Number(resolveOperand(policy,outcome.suggest_count));changed.suggested_supplier_ids=body.suggested_supplier_ids??(item?suggestSuppliers(item,old.rankings.filter(r=>active.has(r.supplier_id)),count,data,policy):[]);if(new Set(changed.suggested_supplier_ids).size!==changed.suggested_supplier_ids.length||changed.suggested_supplier_ids.some(id=>!active.has(id)))throw new Error('Suggestions must be unique currently Active suppliers');}
  }
  const original=(run.result as BatchResult).requirements.find(r=>r.group_id===groupId)!;
+ // Persist the same reconsolidated requirement returned to the buyer and CSV.
+ const proposed=await buyerView(client,run,changed);
+ Object.assign(changed,proposed.requirements.find(r=>r.group_id===groupId)!);
  await client.query(`INSERT INTO buyer_decisions(run_id,group_id,original,effective,comment,actor) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(run_id,group_id) DO UPDATE SET effective=EXCLUDED.effective,comment=EXCLUDED.comment,actor=EXCLUDED.actor,updated_at=now()`,[runId,groupId,original,changed,body.comment,who]);
  await client.query('INSERT INTO audit_events(actor,role,action,before,after) VALUES($1,$2,$3,$4,$5)',[who,role,'REQUIREMENT_OVERRIDDEN',old,changed]);return buyerView(client,run);
 }

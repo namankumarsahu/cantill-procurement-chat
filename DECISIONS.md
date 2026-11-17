@@ -212,7 +212,14 @@ database identities. A replay can have the same proposal labels without creating
 duplicate actual orders.
 
 Buyer approval materializes the proposal. Override requires a nonempty comment
-and preserves original and changed values. Override cannot bypass Active-supplier
+and changes only an unapproved decision; it does not create an actual order.
+After validation, reconsolidate pending requirements before saving the override
+and its audit snapshot. A PO override must reference a real proposal; sourcing
+has no po_id. Buyer/API/CSV views use the same consolidation, and approval replaces
+the proposal label with the durable document number. Historical audit entries
+remain immutable, including entries written before this snapshot correction.
+
+Override preserves original and changed values. It cannot bypass Active-supplier
 checks or invalid quantities/plant. Supplier/route/rate changes are revalidated
 and reconsolidated before approval. This override form cannot edit quantity or
 plant: correct the CSV and reprocess an unapproved batch instead. Record actor, role,
