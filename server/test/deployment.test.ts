@@ -18,5 +18,11 @@ test('remote reset requires a token, explicit enablement and confirmation; dry r
   assert.equal((await reset({confirm_reset:'yes'},'test')).status,400);
   assert.equal((await reset({confirm_reset:true},'test')).data.dry_run,false);
   assert.equal((await pool.query("SELECT count(*)::int n FROM audit_events WHERE actor='deployment-check' AND action='DEMO_RESET'")).rows[0].n,1);
+  const masters=(await pool.query('SELECT * FROM contracts')).rows;
+  const full=await reset({confirm_reset:true,clear_test_history:true},'test');assert.equal(full.status,200);
+  for(const table of ['chat_sessions','pr_lines','batches','processing_runs','procurement_documents','contract_allocations','contract_drafts'])assert.equal((await pool.query(`SELECT count(*)::int n FROM ${table}`)).rows[0].n,0);
+  assert.deepEqual((await pool.query('SELECT * FROM contracts')).rows,masters);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM imports')).rows[0].n,1);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM audit_events')).rows[0].n,1);
  });}finally{if(old===undefined)delete process.env.ALLOW_DEMO_RESET;else process.env.ALLOW_DEMO_RESET=old;if(oldMode===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=oldMode;}
 });

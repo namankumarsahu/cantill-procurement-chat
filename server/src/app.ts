@@ -29,8 +29,8 @@ export function createApp(pool: pg.Pool, adminToken = process.env.ADMIN_TOKEN, o
   });
   app.post('/api/admin/reset-demo',adminOnly(adminToken),async(req,res)=>{
     if(!adminToken||process.env.ALLOW_DEMO_RESET!=='true'){res.status(403).json({error:'Remote demo reset requires ADMIN_TOKEN and ALLOW_DEMO_RESET=true'});return;}
-    const who=actor(req),body=z.strictObject({confirm_reset:z.boolean().default(false)}).parse(req.body??{});
-    res.json(await resetDemo(pool,body.confirm_reset,who));
+    const who=actor(req),body=z.strictObject({confirm_reset:z.boolean().default(false),clear_test_history:z.boolean().default(false)}).parse(req.body??{});
+    res.json(await resetDemo(pool,body.confirm_reset,who,body.clear_test_history));
   });
   app.get('/api/status', async (_req, res) => {
     const latest = await pool.query('SELECT id,counts,warnings,snapshot_date::text,created_at FROM imports ORDER BY created_at DESC,id DESC LIMIT 1');

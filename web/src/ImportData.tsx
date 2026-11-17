@@ -5,6 +5,8 @@ export function ImportData({actor,token}:{actor:string;token:string}) {
   const [file, setFile] = useState<File>(), [snapshot, setSnapshot] = useState('');
   const [result, setResult] = useState<Preview>(), [status, setStatus] = useState<unknown>();
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [resetPreview,setResetPreview]=useState<unknown>(),[resetConfirmed,setResetConfirmed]=useState(false);
+  async function resetDemo(confirm:boolean){setBusy(true);setError('');try{const response=await fetch('/api/admin/reset-demo',{method:'POST',headers:{'content-type':'application/json','x-actor':actor,authorization:`Bearer ${token}`},body:JSON.stringify({confirm_reset:confirm,clear_test_history:true})});const data=await response.json();if(!response.ok)throw Error(data.error);setResetPreview(data);setResetConfirmed(false);await refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   const refresh = () => fetch('/api/status').then(r => r.json()).then(setStatus).catch(() => setError('Cannot connect to the API.'));
   useEffect(() => { void refresh(); }, []);
   async function importKit(event: React.FormEvent) {
@@ -35,5 +37,6 @@ export function ImportData({actor,token}:{actor:string;token:string}) {
       </form>
     </section>
     <section><h2>Current data</h2><pre>{JSON.stringify(status, null, 2) || 'Loading…'}</pre></section>
+    <section><details><summary>Reset disposable demo</summary><p>Deletes amendments/drafts, batch results, raw PRs, chats, approvals/orders and test audit history. Keeps imported masters and contract opening balances. Requires admin token and ALLOW_DEMO_RESET=true on the server.</p><button className="secondary" disabled={busy||!token} onClick={()=>resetDemo(false)}>Preview full demo reset</button>{resetPreview!==undefined&&<pre>{JSON.stringify(resetPreview,null,2)}</pre>}{(resetPreview as {dry_run?:boolean})?.dry_run&&<><label><input type="checkbox" checked={resetConfirmed} onChange={e=>setResetConfirmed(e.target.checked)}/>I understand this permanently clears the demo test data.</label><button disabled={busy||!token||!resetConfirmed} onClick={()=>resetDemo(true)}>Confirm full demo reset</button></>}{error&&<p className="error" role="alert">{error}</p>}</details></section>
   </>;
 }
